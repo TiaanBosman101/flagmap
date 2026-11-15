@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0e1c">
+<title>FlagMap</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&display=swap" rel="stylesheet">
+<style>
+@property --p{syntax:"<number>";inherits:false;initial-value:0}
+:root{--bg:#f4f5fb;--fg:#16172b;--card:#fff;--card2:#eef0f7;--line2:#dfe2ee;--muted:#6b6f86;--sea:#bcdcf6;--sea2:#d6eafb;--grat:#ffffff90;--land:#e3e6ee;--line:#ffffff;--acc:#6d5efc;--grad:linear-gradient(135deg,#8b5cf6,#3b82f6);--accd:#4636c9;--opt:#c9c2ff;--ok:#16a34a;--okd:#11803a;--okbg:#dcfce7;--bad:#e5484d;--badd:#b8333a;--badbg:#ffe1e1;--gold:#f5b70a;--shadow:0 1px 2px #1b1f3b0d,0 6px 20px #1b1f3b10}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0d0e1c;--fg:#f1f2fa;--card:#191a2e;--card2:#24263f;--line2:#2c2e4a;--muted:#9a9cb8;--sea:#081228;--sea2:#0e1f44;--grat:#ffffff10;--land:#2d3658;--line:#0d0e1c;--opt:#4b3fb0;--okbg:#10301d;--badbg:#3a1519;--shadow:0 1px 2px #0008,0 6px 20px #0005}}
+:root[data-theme=dark]{--bg:#0d0e1c;--fg:#f1f2fa;--card:#191a2e;--card2:#24263f;--line2:#2c2e4a;--muted:#9a9cb8;--sea:#081228;--sea2:#0e1f44;--grat:#ffffff10;--land:#2d3658;--line:#0d0e1c;--opt:#4b3fb0;--okbg:#10301d;--badbg:#3a1519;--shadow:0 1px 2px #0008,0 6px 20px #0005}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+body{margin:0;font:600 16px/1.45 Nunito,system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--fg);height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+h2{margin:2px 0 8px;font-size:1.45em;font-weight:900;letter-spacing:-.01em}
+h3{margin:0;font-size:1.05em;font-weight:800}
+small{font-size:.82em}
+.muted{color:var(--muted)}
+svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+/* header */
+header{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 16px 8px;min-height:56px;position:relative;z-index:3}
+#logo{font-size:1.3em;font-weight:900;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-.02em}
+#htitle{font-weight:800;font-size:1.05em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#chips{margin-left:auto;display:flex;gap:6px;align-items:center}
+.chip{background:var(--card);border-radius:20px;padding:5px 11px;font-size:.85em;font-weight:800;box-shadow:var(--shadow);display:flex;gap:4px;align-items:center}
+.lv{width:34px;height:34px;border-radius:50%;background:conic-gradient(var(--acc) calc(var(--p)*1%),var(--card2) 0);display:grid;place-items:center;position:relative;font-weight:900;font-size:.8em;box-shadow:var(--shadow)}
+.lv::before{content:"";position:absolute;inset:3px;border-radius:50%;background:var(--card)}
+.lv b{position:relative}
+#x{width:38px;height:38px;padding:0;border-radius:50%;display:grid;place-items:center}
+
+/* map */
+#map{flex:0 0 calc(40dvh + 22px);background:var(--sea);touch-action:none;position:relative;overflow:hidden}
+#map svg{width:100%;height:100%;display:block}
+.sphere{fill:var(--sea2)}
+.grat{fill:none;stroke:var(--grat);stroke-width:.6;vector-effect:non-scaling-stroke;pointer-events:none}
+.land,.c{fill:var(--land);stroke:var(--line);stroke-width:.6;vector-effect:non-scaling-stroke;transition:opacity .3s,fill .3s}
+.land{pointer-events:none;opacity:.7}
+.c{cursor:pointer}
+@media (hover:hover){.c:hover{filter:brightness(1.12)}}
+.c.off{opacity:.3;pointer-events:none}
+.mk{stroke:var(--line);stroke-width:1.5;fill:var(--muted)}
+.mk.off{display:none}
+.c.opt{fill:var(--opt)}
+.c.hl{fill:var(--acc);animation:pulse 1.4s ease-in-out infinite}
+.c.sel{stroke:#fff;stroke-width:2.5}
+.c.due{opacity:.3}
+.c.right{fill:var(--ok)!important}
+.c.wrong{fill:var(--bad)!important}
+@keyframes pulse{50%{opacity:.6}}
+.mapctl{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:8px}
+.mapctl button{width:38px;height:38px;padding:0;border-radius:50%;font-size:1.15em;background:color-mix(in srgb,var(--card) 82%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--shadow)}
+#tip{position:absolute;left:12px;right:62px;bottom:34px;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:16px;padding:8px 10px;box-shadow:var(--shadow);font-size:.9em;display:flex;align-items:center;gap:10px;animation:up .2s ease-out}
+#tip:empty{display:none}
+
+/* sheet */
+#panel{flex:1;overflow:auto;padding:22px 16px 28px;width:100%;margin-top:-22px;position:relative;z-index:2;background:var(--bg);border-radius:26px 26px 0 0;box-shadow:0 -10px 30px #0000001a}
+#panel::before{content:"";position:absolute;top:8px;left:50%;width:40px;height:5px;margin-left:-20px;border-radius:3px;background:var(--line2)}
+#panel>*{max-width:640px;margin-left:auto;margin-right:auto}
+
+/* nav */
+nav{display:flex;background:var(--card);border-top:1px solid var(--line2);padding:6px 8px calc(6px + env(safe-area-inset-bottom));position:relative;z-index:3}
+nav button{flex:1;background:none;box-shadow:none!important;padding:4px 0;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--muted);font-size:.72em;font-weight:800;transform:none!important}
+nav button .ni{padding:4px 18px;border-radius:14px;display:grid;transition:background .2s}
+nav button.on{color:var(--acc)}
+nav button.on .ni{background:color-mix(in srgb,var(--acc) 16%,transparent)}
+body.session nav{display:none}
+
+/* toast + confetti */
+#toast{position:fixed;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translate(-50%,-20px);opacity:0;pointer-events:none;background:var(--fg);color:var(--bg);padding:10px 18px;border-radius:14px;max-width:min(92vw,480px);transition:.25s;z-index:30;font-size:.92em;font-weight:800;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+.confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:25}
+
+/* buttons */
+button,.btn{font:inherit;font-weight:800;text-align:center;border:0;border-radius:14px;padding:12px 16px;background:var(--card);color:var(--fg);cursor:pointer;box-shadow:0 3px 0 var(--line2);transition:transform .08s,box-shadow .08s,background .2s}
+button:active:not(:disabled),.btn:active{transform:translateY(2px);box-shadow:0 1px 0 var(--line2)}
+button:disabled{opacity:.5;cursor:default}
+button.primary{background:var(--grad);color:#fff;box-shadow:0 3px 0 var(--accd)}
+button.primary:active:not(:disabled){box-shadow:0 1px 0 var(--accd)}
+button.ghost{background:none;box-shadow:none;color:var(--muted)}
+button.danger{background:none;color:var(--bad);box-shadow:none;width:100%;margin-top:4px}
+button.wide{width:100%}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+.row button,.row .btn{flex:1}
+.sticky{position:sticky;bottom:-28px;padding:14px 0 28px;margin-bottom:-28px;background:linear-gradient(transparent,var(--bg) 35%)}
+
+/* cards */
+.card{background:var(--card);border-radius:22px;padding:18px;margin:12px 0;box-shadow:var(--shadow);text-align:center}
+.card.l{text-align:left}
+.flag{border-radius:3px;vertical-align:middle;margin:2px;box-shadow:0 0 0 1px #0000001a}
+.flag.big{border-radius:8px;box-shadow:0 0 0 1px #0000001a,0 10px 28px #0000002e;margin:6px 0 12px;animation:wave 5s ease-in-out infinite}
+@keyframes wave{0%,100%{transform:perspective(500px) rotateY(-9deg) rotateX(3deg)}50%{transform:perspective(500px) rotateY(9deg) rotateX(-3deg)}}
+.tag{display:inline-flex;align-items:center;gap:4px;background:var(--card2);border-radius:10px;padding:3px 10px;margin:3px 2px;font-size:.8em;font-weight:800}
+
+/* home */
+.hero{background:var(--grad);color:#fff;border-radius:26px;padding:18px;box-shadow:0 10px 30px #5b4bf04d;position:relative;overflow:hidden}
+.hero::after{content:"🌍";position:absolute;right:-18px;bottom:-34px;font-size:8em;opacity:.16;transform:rotate(-15deg)}
+.hero .top{display:flex;justify-content:space-between;align-items:flex-start}
+.hero h2{margin:0;font-size:1.7em}
+.hero small{opacity:.85}
+.flame{text-align:center;background:#ffffff26;border-radius:16px;padding:6px 12px;line-height:1.1}
+.flame b{display:block;font-size:1.5em}
+.xpbar{height:10px;background:#ffffff33;border-radius:5px;margin:14px 0 4px;overflow:hidden}
+.xpbar i{display:block;height:100%;background:#fff;border-radius:5px;transition:width .6s}
+.hstats{display:flex;gap:8px;margin-top:14px;position:relative;z-index:1}
+.hstats span{flex:1;background:#ffffff1f;border-radius:14px;padding:8px;text-align:center;font-size:.75em;line-height:1.2}
+.hstats b{display:block;font-size:1.6em}
+.todo{display:flex;gap:12px;align-items:center;padding:10px 0}
+.todo+.todo{border-top:1px solid var(--card2)}
+.todo>span:nth-child(2){flex:1}
+.ti{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;font-size:1.35em;flex:none;background:var(--card2)}
+.todo.done .ti{background:var(--okbg)}
+.todo.done b{text-decoration:line-through;color:var(--muted)}
+.reg{display:flex;align-items:baseline;justify-content:space-between;margin:24px 2px 8px}
+.badge{background:var(--bad);color:#fff;border-radius:10px;padding:1px 8px;font-size:.72em;white-space:nowrap;font-weight:800}
+.stars{color:var(--gold);white-space:nowrap;letter-spacing:1px}
+.bar{flex:1;height:10px;background:var(--card2);border-radius:5px;overflow:hidden}
+.bar.thin{height:5px;flex:none}
+.bar i{display:block;height:100%;background:var(--grad);border-radius:5px;transition:width .4s}
+.bar.thin i{background:var(--ok)}
+
+/* path */
+.path .reg{margin:22px 0 6px 50px}
+.step{display:flex;gap:14px;align-items:center;padding:6px 0;position:relative;cursor:pointer}
+.step::before{content:"";position:absolute;left:18px;top:0;bottom:0;width:4px;border-radius:2px;background:var(--card2)}
+.step.done::before{background:var(--ok)}
+.node{width:40px;height:40px;border-radius:50%;background:var(--card2);color:var(--muted);display:grid;place-items:center;font-size:.9em;font-weight:900;flex:none;position:relative;z-index:1;box-shadow:0 3px 0 var(--line2)}
+.step.done .node{background:var(--ok);color:#fff;box-shadow:0 3px 0 var(--okd)}
+.step.cur .node{background:var(--grad);color:#fff;box-shadow:0 3px 0 var(--accd);animation:ring 1.8s infinite}
+@keyframes ring{0%{outline:0 solid color-mix(in srgb,var(--acc) 50%,transparent)}100%{outline:12px solid transparent}}
+.step .sb{flex:1;background:var(--card);border-radius:18px;padding:10px 12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px;transition:transform .15s}
+.step:active .sb{transform:scale(.98)}
+.step .ct{display:flex;gap:6px;align-items:center;font-size:.95em}.step .ct b{flex:1}
+.step .cf{line-height:0}
+.step.cur .sb{box-shadow:0 0 0 2px var(--acc),var(--shadow)}
+
+/* quiz */
+.qtop{display:flex;align-items:center;gap:12px}
+.combo{font-weight:900;color:var(--gold);min-width:44px;text-align:right}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.opts button{min-height:60px;border:2px solid var(--line2);box-shadow:0 4px 0 var(--line2)}
+.opts button:active:not(:disabled){box-shadow:0 1px 0 var(--line2)}
+button.right{background:var(--ok);border-color:var(--okd)!important;color:#fff;box-shadow:0 4px 0 var(--okd)!important;opacity:1!important}
+button.wrong{background:var(--bad);border-color:var(--badd)!important;color:#fff;box-shadow:0 4px 0 var(--badd)!important;opacity:1!important}
+.prompt{font-size:1.05em;font-weight:800;margin:4px 0}
+#fb:empty{display:none}
+.fbar{position:sticky;bottom:-28px;margin:16px -16px -28px!important;max-width:none!important;padding:16px 16px calc(28px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;animation:up .25s ease-out;text-align:left}
+.fbar.ok{background:var(--okbg)}.fbar.bad{background:var(--badbg)}
+.fbar>*{max-width:608px;margin-left:auto;margin-right:auto}
+.fbar h4{margin:0;font-size:1.25em;font-weight:900;display:flex;align-items:center;gap:8px}
+.fbar.ok h4{color:var(--ok)}.fbar.bad h4{color:var(--bad)}
+.fbar .xp{margin-left:auto;font-size:.7em;background:var(--card);color:var(--acc);border-radius:10px;padding:2px 8px}
+.fbar.ok button.primary{background:var(--ok);box-shadow:0 3px 0 var(--okd)}
+.fbar.bad button.primary{background:var(--bad);box-shadow:0 3px 0 var(--badd)}
+.fbar p{margin:8px 0}
+.cmp{display:flex;justify-content:center;gap:28px;margin:10px 0;font-size:.88em;text-align:center}
+.dots{display:flex;justify-content:center;gap:6px;margin:2px 0 0}
+.dots i{width:8px;height:8px;border-radius:4px;background:var(--card2);transition:.25s}
+.dots i.seen{background:var(--opt)}.dots i.on{background:var(--acc);width:24px}
+.fam{text-align:left;font-size:.92em;margin:14px 0 0;background:var(--card2);border-radius:14px;padding:10px 12px}
+.twin{text-align:left;font-size:.92em;margin:10px 0 0}
+
+/* result */
+.ring{width:132px;height:132px;border-radius:50%;background:conic-gradient(var(--ok) calc(var(--p)*1%),var(--card2) 0);display:grid;place-items:center;margin:6px auto 10px;animation:fill 1.1s ease-out}
+.ring span{width:106px;height:106px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-size:1.8em;font-weight:900}
+@keyframes fill{from{--p:0}}
+.big-ic{font-size:3.4em;animation:pop .5s}
+.xpgain{display:inline-block;background:var(--grad);color:#fff;border-radius:12px;padding:4px 12px;font-weight:900;margin:4px}
+
+/* play, flags, settings */
+.game{display:flex;align-items:center;gap:14px;text-align:left;width:100%;margin:10px 0;padding:14px;border-radius:20px}
+.gi{width:56px;height:56px;border-radius:18px;display:grid;place-items:center;font-size:1.7em;flex:none;background:var(--c)}
+.fl{display:inline-block;width:78px;font-size:.74em;vertical-align:top;cursor:pointer;margin:6px 0;text-align:center;font-weight:700}
+.set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--card2)}
+.set:last-child{border:0}
+.set small{display:block;color:var(--muted);font-weight:600}
+.seg{display:flex;background:var(--card2);border-radius:12px;padding:3px;flex:none}
+.seg button{box-shadow:none;background:none;padding:6px 11px;font-size:.88em;border-radius:9px}
+.seg button.on{background:var(--card);box-shadow:var(--shadow);color:var(--acc)}
+.sw{appearance:none;-webkit-appearance:none;width:50px;height:30px;border-radius:15px;background:var(--line2);position:relative;cursor:pointer;flex:none;margin:0;transition:.2s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0004;transition:.2s}
+.sw:checked{background:var(--ok)}.sw:checked::after{left:23px}
+.steps>div{display:flex;gap:12px;align-items:center;margin:14px 0;text-align:left}
+.steps .node{background:var(--grad);color:#fff;box-shadow:0 3px 0 var(--accd)}
+
+@keyframes shake{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+@keyframes pop{0%{transform:scale(.94)}60%{transform:scale(1.03)}100%{transform:scale(1)}}
+@keyframes up{from{transform:translateY(30px);opacity:0}}
+.shake{animation:shake .35s}.pop{animation:pop .35s}
+
+@media (min-width:900px){
+  body{display:grid;grid-template-columns:1fr 480px;grid-template-rows:auto 1fr auto}
+  header{grid-column:1/-1}
+  #map{grid-row:2/4;margin:0 0 16px 16px;border-radius:26px}
+  #panel{grid-column:2;margin:0;border-radius:0;box-shadow:none;padding-top:8px}
+  #panel::before{display:none}
+  nav{grid-column:2;background:var(--bg);border:0}
+  #tip{bottom:12px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <button id="x" onclick="home()" hidden aria-label="Close"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  <span id="logo">FlagMap</span><span id="htitle"></span>
+  <div id="chips"></div>
+</header>
+<div id="map">
+  <svg></svg>
+  <div class="mapctl"><button onclick="zoomBy(1.6)" aria-label="Zoom in">+</button><button onclick="zoomBy(1/1.6)" aria-label="Zoom out">−</button><button onclick="resetView()" aria-label="Reset view">⤢</button></div>
+  <div id="tip"></div>
+</div>
+<div id="panel"><p class="muted">Loading map…</p></div>
+<nav>
+  <button data-t="home" onclick="home()"><span class="ni"><svg class="i" viewBox="0 0 24 24"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg></span>Learn</button>
+  <button data-t="play" onclick="play()"><span class="ni"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="11" rx="5"/><path d="M7 11v3M5.5 12.5h3M16 11.5h.01M18 13.5h.01"/></svg></span>Play</button>
+  <button data-t="families" onclick="families()"><span class="ni"><svg class="i" viewBox="0 0 24 24"><path d="M5 21V4M5 4h12l-2.5 4L17 12H5"/></svg></span>Flags</button>
+  <button data-t="settings" onclick="settings()"><span class="ni"><svg class="i" viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg></span>Settings</button>
+</nav>
+<div id="toast"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
+<script src="data.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const TODAY = Math.floor((Date.now() - new Date().getTimezoneOffset() * 6e4) / 864e5);
+const INTERVALS = [0, 1, 2, 4, 7, 14, 30, 60]; // days per Leitner box
+const MASTER = 4; // lesson rungs: f2n, m2f, n2m, f2m
+const POINTS = { tv: [179.2, -8.5] }; // no shape in the 50m atlas
+const REGION_ICON = { Europe: '🏰', 'Middle East': '🕌', Asia: '🏯', Africa: '🦁', Americas: '🗽', Oceania: '🏝️' };
+const PRAISE = ['Nice!', 'Great!', 'Spot on!', 'Excellent!', 'You got it!', 'Brilliant!'];
+const flagUrl = id => `https://flagcdn.com/${id}.svg`;
+const flagImg = (id, h = 60, cls = '') => `<img class="flag ${cls}" style="height:${h}px" src="${flagUrl(id)}" alt="">`;
+const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = (a, avoid) => { const b = a.filter(x => x !== avoid); return (b.length ? b : a)[Math.random() * (b.length || a.length) | 0]; };
+const plural = (n, w) => `${n} ${n === 1 ? w : w.replace(/y$/, 'ie') + 's'}`;
+
+// ---- data ----
+const C = {}, CHUNKS = [];
+REGIONS.forEach(([region, chunks]) => chunks.forEach(([name, s]) => {
+  const ch = { name, region, ids: [] };
+  s.split(',').forEach(e => {
+    const [, id, num, n] = e.match(/^([a-z]{2})(\d*)(.+)$/);
+    C[id] = { id, num, name: n, chunk: ch, region, fam: [], twins: null };
+    ch.ids.push(id);
+  });
+  CHUNKS.push(ch);
+}));
+FAMILIES.forEach(f => { f.ids = f.m.split(' '); f.ids.forEach(id => C[id].fam.push(f)); });
+TWINS.forEach(([m, tip]) => { const ids = m.split(' '); ids.forEach(id => C[id].twins = { ids, tip }); });
+const regionIds = r => Object.keys(C).filter(id => C[id].region === r);
+const TOTAL = Object.keys(C).length;
+
+// ---- progress, XP & settings ----
+const DEFAULTS = { theme: 'system', sound: true, vibrate: true, auto: true, reviewSize: 20 };
+let S = {};
+try { S = JSON.parse(localStorage.getItem('flagmap')) || {}; } catch {}
+S.p ??= {}; S.streak ??= 0; S.last ??= 0; S.best ??= 0; S.xp ??= 0;
+S.set = { ...DEFAULTS, ...S.set };
+if (S.mute) { S.set.sound = false; delete S.mute; }
+const save = () => { try { localStorage.setItem('flagmap', JSON.stringify(S)); } catch {} };
+const learned = () => Object.keys(S.p).filter(id => C[id]);
+const isDue = id => S.p[id] && S.p[id].due <= TODAY;
+const streak = () => S.last >= TODAY - 1 ? S.streak : 0;
+function touchStreak() { if (S.last === TODAY) return; S.streak = S.last === TODAY - 1 ? S.streak + 1 : 1; S.last = TODAY; save(); }
+const lvlOf = xp => Math.floor(Math.sqrt(xp / 100)) + 1; // level n starts at (n-1)² × 100 XP
+const lvlInfo = () => { const l = lvlOf(S.xp), a = (l - 1) ** 2 * 100, b = l ** 2 * 100; return { l, have: S.xp - a, need: b - a, pct: (S.xp - a) / (b - a) * 100 }; };
+function addXP(n) { S.xp += n; if (Q) Q.xp += n; }
+
+function applyTheme() {
+  const t = S.set.theme, root = document.documentElement;
+  if (t === 'system') root.removeAttribute('data-theme'); else root.dataset.theme = t;
+  $('meta[name=theme-color]').content = getComputedStyle(document.body).backgroundColor;
+}
+function setSet(k, v) { S.set[k] = v; save(); applyTheme(); if (mode === 'settings') settings(); }
+
+let actx;
+function beep(ok, combo = 0) {
+  if (!S.set.sound) return;
+  try {
+    actx ??= new AudioContext();
+    const o = actx.createOscillator(), gn = actx.createGain(), t = actx.currentTime, up = 1 + Math.min(combo, 8) * 0.06;
+    o.type = ok ? 'sine' : 'triangle';
+    o.frequency.setValueAtTime((ok ? 660 : 220) * up, t);
+    if (ok) o.frequency.setValueAtTime(990 * up, t + 0.08);
+    gn.gain.setValueAtTime(0.12, t);
+    gn.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+    o.connect(gn).connect(actx.destination);
+    o.start(t); o.stop(t + 0.3);
+  } catch {}
+}
+const buzz = ms => S.set.vibrate && navigator.vibrate?.(ms);
+
+function toast(h) {
+  const t = $('#toast');
+  t.innerHTML = h; t.classList.add('show');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+function confetti() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const cv = document.createElement('canvas'), x = cv.getContext('2d'), dpr = devicePixelRatio || 1, w = innerWidth, h = innerHeight;
+  cv.className = 'confetti'; cv.width = w * dpr; cv.height = h * dpr; x.scale(dpr, dpr); document.body.append(cv);
+  const cols = ['#8b5cf6', '#3b82f6', '#22c55e', '#f5b70a', '#ef4444', '#ec4899'];
+  const ps = Array.from({ length: 150 }, () => ({ x: w / 2, y: h * 0.4, vx: (Math.random() - 0.5) * 16, vy: -Math.random() * 15 - 5, r: Math.random() * 6 + 5, c: pick(cols), a: Math.random() * 6, va: (Math.random() - 0.5) * 0.4 }));
+  const t0 = performance.now();
+  (function f(t) {
+    x.clearRect(0, 0, w, h);
+    for (const p of ps) { p.x += p.vx; p.y += p.vy; p.vy += 0.38; p.vx *= 0.99; p.a += p.va; x.save(); x.translate(p.x, p.y); x.rotate(p.a); x.fillStyle = p.c; x.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); x.restore(); }
+    if (t - t0 < 2400) requestAnimationFrame(f); else cv.remove();
+  })(t0);
+}
+
+function exportData() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(S)], { type: 'application/json' }));
+  a.download = `flagmap-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+}
+function importData(file) {
+  file?.text().then(t => {
+    const d = JSON.parse(t), p = {};
+    for (const [k, v] of Object.entries(d.p || {})) if (C[k] && Number.isFinite(v?.box) && Number.isFinite(v?.due)) p[k] = { box: Math.min(7, Math.max(1, v.box | 0)), due: v.due | 0 };
+    if (!Object.keys(p).length) throw 0;
+    S = { ...S, p, streak: +d.streak || 0, last: +d.last || 0, best: +d.best || 0, xp: +d.xp || 0, intro: 1 };
+    save(); home(`Progress restored: ${plural(Object.keys(p).length, 'country')}.`);
+  }).catch(() => alert("That file isn't a FlagMap backup."));
+}
+function resetAll() {
+  if (!confirm('Delete all your progress? This cannot be undone.')) return;
+  S = { p: {}, streak: 0, last: 0, best: 0, xp: 0, set: S.set };
+  save(); home();
+}
+
+// ---- map ----
+const svg = d3.select('#map svg'), defs = svg.append('defs'), g = svg.append('g');
+let W, H, path, mode = 'home', Q = null, E = null, lastView = null;
+const zoom = d3.zoom().scaleExtent([1, 80]).on('zoom', e => {
+  g.attr('transform', e.transform);
+  g.selectAll('circle.mk').attr('r', 4.5 / (e.transform.k || 1));
+});
+svg.call(zoom).on('dblclick.zoom', null);
+const zoomBy = f => svg.transition().duration(250).call(zoom.scaleBy, f);
+const resetView = () => lastView ? zoomTo(lastView, lastView.k) : zoomWorld();
+
+function mainBounds(f) { // largest polygon only, so France ≠ French Guiana and Russia/US/Fiji don't span the antimeridian
+  if (f.geometry.type !== 'MultiPolygon') return path.bounds(f);
+  let best, ba = -1;
+  for (const coordinates of f.geometry.coordinates) { const p = { type: 'Polygon', coordinates }, a = path.area(p); if (a > ba) { ba = a; best = p; } }
+  return path.bounds(best);
+}
+
+function zoomTo(ids, maxK = 40) {
+  lastView = Object.assign([...ids], { k: maxK });
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  ids.forEach(id => { const [[a, b], [c, d]] = C[id].box; x0 = Math.min(x0, a); y0 = Math.min(y0, b); x1 = Math.max(x1, c); y1 = Math.max(y1, d); });
+  // the sheet overlaps the bottom 22px of the map, so centre a little higher
+  const k = Math.max(1, Math.min(maxK, 0.78 / Math.max((x1 - x0) / W, (y1 - y0) / (H - 22), 1e-3)));
+  svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity.translate(W / 2, (H - 22) / 2).scale(k).translate(-(x0 + x1) / 2, -(y0 + y1) / 2));
+}
+function zoomWorld() { lastView = null; svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity); }
+
+function flagPat(c, mk) {
+  const id = (mk ? 'q' : 'p') + c.id;
+  if (!document.getElementById(id)) {
+    const p = defs.append('pattern').attr('id', id);
+    const img = p.append('image').attr('href', flagUrl(c.id));
+    if (mk) { p.attr('patternContentUnits', 'objectBoundingBox').attr('width', 1).attr('height', 1); img.attr('width', 1).attr('height', 1).attr('preserveAspectRatio', 'none'); }
+    else {
+      const [[x0, y0], [x1, y1]] = c.box;
+      p.attr('patternUnits', 'userSpaceOnUse').attr('x', x0).attr('y', y0).attr('width', x1 - x0).attr('height', y1 - y0);
+      img.attr('width', x1 - x0).attr('height', y1 - y0).attr('preserveAspectRatio', 'xMidYMid slice');
+    }
+  }
+  return `url(#${id})`;
+}
+
+// fn(country) -> space-separated classes; "flag" paints the country with its flag
+function paint(fn) {
+  g.selectAll('.c').each(function (c) {
+    const cls = fn(c) || '', mk = this.tagName === 'circle';
+    this.setAttribute('class', (mk ? 'mk ' : '') + 'c ' + cls);
+    this.style.fill = /\bflag\b/.test(cls) ? flagPat(c, mk) : '';
+  });
+}
+const homePaint = x => S.p[x.id] ? 'flag' + (isDue(x.id) ? ' due' : '') : '';
+
+function onTap(id) {
+  if (mode === 'explore') { const i = E.ch.ids.indexOf(id); if (i >= 0) { E.i = i; card(); } return; }
+  if (mode !== 'quiz') return showInfo(id);
+  const q = Q?.cur;
+  if (!q || q.done) return;
+  if (q.type === 'nb') return nbTap(q, id);
+  if ((q.type === 'n2m' || q.type === 'f2m') && q.scope.includes(id)) answer(id);
+}
+
+function showInfo(id) {
+  const c = C[id], p = S.p[id];
+  paint(x => x.id === id ? 'flag sel' : homePaint(x));
+  zoomTo([id], 6);
+  $('#tip').innerHTML = `${flagImg(id, 34)}<span style="flex:1;line-height:1.25"><b>${c.name}</b><br><small class="muted">${c.chunk.name}${p ? (isDue(id) ? ' · due for review' : ' · learned ✓') : ''}</small></span>`
+    + (p ? '' : `<button class="primary" style="padding:8px 14px" onclick="explore(${CHUNKS.indexOf(c.chunk)})">Learn</button>`);
+}
+
+// ---- navigation ----
+function header(title) {
+  const s = title !== undefined, lv = lvlInfo();
+  $('#x').hidden = !s; $('#logo').hidden = s; $('#htitle').textContent = s ? title : '';
+  $('#chips').innerHTML = `<span class="chip" title="Day streak">🔥 ${streak()}</span><span class="lv" style="--p:${lv.pct}" title="Level ${lv.l} · ${lv.have}/${lv.need} XP"><b>${lv.l}</b></span>`;
+}
+function leave() { clearTimeout(Q?.timer); Q = null; $('#tip').innerHTML = ''; $('#panel').scrollTop = 0; }
+function tab(name) {
+  leave(); mode = name; header();
+  document.body.classList.remove('session');
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.t === name));
+  paint(homePaint); zoomWorld();
+}
+function session(name, title) { leave(); mode = name; header(title); document.body.classList.add('session'); }
+
+// ---- Learn tab ----
+function stars(ch) {
+  if (!ch.ids.every(id => S.p[id])) return '';
+  const m = Math.min(...ch.ids.map(id => S.p[id].box));
+  return '★'.repeat(1 + (m >= 3) + (m >= 5));
+}
+const strength = ch => ch.ids.reduce((s, id) => s + (S.p[id] ? Math.min(S.p[id].box, 5) / 5 : 0), 0) / ch.ids.length;
+const nextChunk = () => CHUNKS.find(ch => !ch.ids.every(id => S.p[id]));
+const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; };
+
+function intro() {
+  const next = nextChunk() || CHUNKS[0];
+  $('#panel').innerHTML = `<div class="hero pop"><h2>Welcome to FlagMap 👋</h2><p style="margin:8px 0 0;position:relative;z-index:1">Learn where every country is and what its flag looks like, one small group of neighbours at a time. ${CHUNKS.length} groups take you around the world.</p></div>
+    <div class="card l"><div class="steps">
+      <div><span class="node">1</span><span><b>Explore</b><br><small class="muted">Meet a few neighbouring countries: where they are, their flag, and the flag family it belongs to.</small></span></div>
+      <div><span class="node">2</span><span><b>Practice</b><br><small class="muted">Easy questions first, then harder: pick the name, pick the flag, then find it on the map.</small></span></div>
+      <div><span class="node">3</span><span><b>Review</b><br><small class="muted">Learned flags get painted on your map. When one fades, review it so you don't forget. A few minutes a day is enough.</small></span></div>
+    </div></div>
+    <div class="sticky"><button class="primary wide" onclick="S.intro=1;save();explore(${CHUNKS.indexOf(next)})">Start: ${next.name} →</button>
+    <button class="ghost wide" onclick="S.intro=1;save();home()">Look around first</button></div>`;
+}
+
+function home(msg) {
+  tab('home');
+  const L = learned(), due = L.filter(isDue), next = nextChunk(), lv = lvlInfo();
+  if (!S.intro && !L.length) return intro();
+  const done = CHUNKS.filter(ch => ch.ids.every(id => S.p[id])).length;
+  let h = `<div class="hero"><div class="top"><div><small>${greeting()} 👋</small><h2>Level ${lv.l}</h2></div><div class="flame">🔥<b>${streak()}</b><small>day streak</small></div></div>
+    <div class="xpbar"><i style="width:${lv.pct}%"></i></div><small>${lv.have} / ${lv.need} XP to level ${lv.l + 1}</small>
+    <div class="hstats"><span><b>${L.length}</b>learned</span><span><b>${L.filter(id => S.p[id].box >= 4).length}</b>remembered well</span><span><b>${done}/${CHUNKS.length}</b>groups</span></div></div>`;
+
+  // today's plan: review first (so nothing is forgotten), then one new group
+  const n = S.set.reviewSize ? Math.min(due.length, S.set.reviewSize) : due.length;
+  const learnedToday = S.lessonDay === TODAY, nd = L.length ? Math.min(...L.map(id => S.p[id].due)) - TODAY : 0;
+  h += `<div class="card l"><h3>Today's plan</h3>
+    <div class="todo ${due.length ? '' : 'done'}"><span class="ti">${due.length ? '🔁' : '✅'}</span><span><b>Review</b><br><small class="muted">${due.length ? `${plural(due.length, 'country')} fading · about ${Math.max(1, Math.round(n / 6))} min` : L.length ? `Nothing due · next ${nd === 1 ? 'tomorrow' : `in ${nd} days`}` : 'Nothing to review yet'}</small></span>
+      ${due.length ? `<button class="primary" onclick="review()">Go</button>` : ''}</div>
+    <div class="todo ${learnedToday ? 'done' : ''}"><span class="ti">${learnedToday ? '✅' : '🧭'}</span><span><b>Learn a new group</b><br><small class="muted">${next ? `${next.name} · ${plural(next.ids.length, 'country')}` : 'You\'ve learned the whole world! 🌍'}</small></span>
+      ${next ? `<button class="${due.length ? '' : 'primary'}" onclick="explore(${CHUNKS.indexOf(next)})">${learnedToday ? 'More' : 'Go'}</button>` : ''}</div></div>`;
+
+  // the path: every group in order, current one highlighted
+  h += `<div class="reg"><h3>Your path</h3><small class="muted">${done}/${CHUNKS.length} groups</small></div>
+    <div class="bar"><i style="width:${done / CHUNKS.length * 100}%"></i></div><div class="path">`;
+  REGIONS.forEach(([r]) => {
+    const ids = regionIds(r), l = ids.filter(id => S.p[id]).length;
+    h += `<div class="reg"><h3>${REGION_ICON[r]} ${r}${l === ids.length ? ' 🏆' : ''}</h3><small class="muted">${l}/${ids.length}</small></div>`;
+    CHUNKS.filter(ch => ch.region === r).forEach(ch => {
+      const i = CHUNKS.indexOf(ch), isDone = ch.ids.every(id => S.p[id]), cur = ch === next, d = ch.ids.filter(isDue).length;
+      h += `<div class="step ${isDone ? 'done' : cur ? 'cur' : ''}" onclick="explore(${i})"><span class="node">${isDone ? '✓' : i + 1}</span>
+        <div class="sb"><div class="ct"><b>${ch.name}</b>${d ? `<span class="badge">${d} due</span>` : `<span class="stars">${stars(ch)}</span>`}${cur ? '<span class="badge" style="background:var(--acc)">Next</span>' : ''}</div>
+        <div class="cf">${ch.ids.map(id => flagImg(id, 14)).join('')}</div>${isDone ? `<div class="bar thin" title="Memory strength"><i style="width:${strength(ch) * 100}%"></i></div>` : ''}</div></div>`;
+    });
+  });
+  $('#panel').innerHTML = h + '</div>';
+  if (msg) toast(msg);
+}
+
+// ---- lesson: explore ----
+function explore(ci) {
+  const ch = CHUNKS[ci];
+  session('explore', ch.name);
+  E = { ch, i: 0, seen: new Set() };
+  zoomTo(ch.ids);
+  card();
+}
+function card() {
+  const { ch } = E, id = ch.ids[E.i], c = C[id], n = ch.ids.length;
+  E.seen.add(id);
+  paint(x => x.id === id ? 'flag sel' : E.seen.has(x.id) ? 'flag' : ch.ids.includes(x.id) ? 'opt' : S.p[x.id] ? 'flag off' : 'off');
+  const tw = c.twins ? `<p class="twin">👯 <b>Lookalike:</b> ${c.twins.ids.filter(x => x !== id).map(x => flagImg(x, 18) + ' ' + C[x].name).join(', ')}. ${c.twins.tip}</p>` : '';
+  $('#panel').innerHTML = `<div class="dots">${ch.ids.map((x, i) => `<i class="${i === E.i ? 'on' : E.seen.has(x) ? 'seen' : ''}"></i>`).join('')}</div>
+    <div class="card pop">${flagImg(id, 104, 'big')}<h2>${c.name}</h2><small class="muted">${REGION_ICON[c.region]} ${ch.name}</small>
+    ${c.fam.map(f => `<div class="fam"><b>🧬 ${f.name}</b><br><small>${f.note}</small><br>${f.ids.map(x => flagImg(x, 18)).join('')}</div>`).join('')}${tw}</div>
+    <div class="sticky"><div class="row" style="margin:0"><button onclick="E.i--;card()" ${E.i ? '' : 'disabled'}>‹ Back</button>
+    ${E.i < n - 1 ? `<button class="primary" style="flex:2" onclick="E.i++;card()">Next ›</button>` : `<button class="primary" style="flex:2" onclick="lesson()">Start practice 🚀</button>`}</div>
+    <p class="muted" style="text-align:center;margin:8px 0 0"><small>Tap a highlighted country on the map to revisit it</small></p></div>`;
+}
+
+// ---- quiz engine ----
+// session: { name, gen() -> question|null, onResult(q, ok), end(), progress() -> 0..1, fast? }
+function run(sess) { session('quiz', sess.name); Q = { n: 0, right: 0, again: [], xp: 0, combo: 0, lvl0: lvlOf(S.xp), ...sess }; nextQ(); }
+function nextQ() {
+  clearTimeout(Q.timer);
+  const q = Q.gen();
+  if (!q) return Q.end();
+  Q.n++; ask(q);
+}
+function takeAgain(force) { // wrong answers come back ~3 questions later
+  let i = Q.again.findIndex(a => a.at <= Q.n);
+  if (i < 0 && force && Q.again.length) i = 0;
+  return i < 0 ? null : Q.again.splice(i, 1)[0].id;
+}
+function mkQ(id, type, scope, k = 3, pool = scope) {
+  const q = { id, type, scope }, c = C[id];
+  if (type === 'f2n' || type === 'm2f') {
+    const tw = (c.twins?.ids || []).filter(x => x !== id && (S.p[x] || pool.includes(x)));
+    const d = [...new Set([...shuffle(tw), ...shuffle(pool), ...shuffle(regionIds(c.region))])].filter(x => x !== id);
+    q.opts = shuffle([id, ...d.slice(0, k - 1)]);
+  }
+  if (type === 'twin') q.opts = shuffle(c.twins.ids);
+  if (type === 'fam') q.opts = shuffle([pick(c.fam).name, ...shuffle(FAMILIES.filter(f => !c.fam.includes(f))).slice(0, 3).map(f => f.name)]);
+  return q;
+}
+const isRight = (q, o) => q.type === 'nb' ? o === true : q.type === 'fam' ? C[q.id].fam.some(f => f.name === o) : o === q.id;
+const qtop = () => `<div class="qtop"><div class="bar"><i style="width:${Q.progress() * 100}%"></i></div><span class="combo">${Q.combo >= 2 ? `🔥${Q.combo}` : ''}</span></div>`;
+
+function nbPaint(q, wrongId) {
+  paint(x => x.id === q.id ? 'hl' : q.found.has(x.id) ? 'flag' : x.id === wrongId ? 'wrong' : S.p[x.id] ? '' : 'off');
+}
+function nbTap(q, id) {
+  if (id === q.id || q.found.has(id)) return;
+  const hit = q.need.includes(id);
+  if (hit) { q.found.add(id); buzz(12); } else { q.miss++; buzz(120); }
+  beep(hit, q.found.size);
+  nbPaint(q, hit ? null : id);
+  $('#nbc').textContent = `${q.found.size}/${q.need.length} found · ${q.miss} wrong`;
+  if (q.found.size === q.need.length) answer(!q.miss);
+}
+
+function ask(q) {
+  Q.cur = q; Q.lastId = q.id;
+  if (q.type === 'nb') {
+    nbPaint(q); zoomTo([q.id, ...q.need]);
+    $('#panel').innerHTML = `${qtop()}<div class="card pop" id="qc"><h2>${C[q.id].name}</h2><p class="prompt">👆 Tap the ${plural(q.need.length, 'learned country')} that border it</p>
+      <p class="muted" id="nbc">0/${q.need.length} found</p><div class="row" id="giveup"><button onclick="answer(false)">Show me</button></div></div><div id="fb"></div>`;
+    return;
+  }
+  const tap = q.type === 'n2m' || q.type === 'f2m', c = C[q.id];
+  paint(x => q.type === 'm2f' && x.id === q.id ? 'hl' : q.scope.includes(x.id) ? (tap ? 'opt' : '') : S.p[x.id] ? 'flag off' : 'off');
+  zoomTo(q.scope);
+  const big = flagImg(q.id, 104, 'big');
+  const prompt = {
+    f2n: big + '<p class="prompt">Which country is this?</p>',
+    m2f: '<p class="prompt">Which flag belongs to the <span style="color:var(--acc)">highlighted</span> country?</p>',
+    n2m: `<h2 style="font-size:1.9em">${c.name}</h2><p class="prompt">👆 Tap it on the map</p>`,
+    f2m: big + '<p class="prompt">👆 Tap this country on the map</p>',
+    twin: big + '<p class="prompt">👯 Lookalike! Which one is it?</p>',
+    fam: big + '<p class="prompt">🧬 Which flag family is this?</p>',
+  }[q.type];
+  const opts = (q.opts || []).map((o, i) => `<button onclick="answer(${i})">${q.type === 'm2f' ? flagImg(o, 48) : q.type === 'fam' ? o : C[o].name}</button>`).join('');
+  $('#panel').innerHTML = `${qtop()}<div class="card pop" id="qc">${prompt}${opts ? `<div class="opts">${opts}</div>` : ''}</div><div id="fb"></div>`;
+}
+
+function answer(p) {
+  const q = Q.cur;
+  if (q.done) return;
+  q.done = true;
+  if (typeof p === 'number') p = q.opts[p];
+  const c = C[q.id], ok = isRight(q, p);
+  let gain = 0;
+  if (ok) { Q.right++; Q.combo++; gain = 10 + Math.min(Q.combo - 1, 5) * 2; addXP(gain); buzz(12); }
+  else { Q.combo = 0; Q.again.push({ id: q.id, at: Q.n + 3 }); buzz(120); }
+  if (q.type !== 'nb') beep(ok, Q.combo);
+  Q.onResult(q, ok); save();
+  const qc = $('#qc');
+  qc.classList.remove('pop'); void qc.offsetWidth; // restart the animation
+  qc.classList.add(ok ? 'pop' : 'shake');
+  $('.combo').textContent = Q.combo >= 2 ? `🔥${Q.combo}` : '';
+  const fb = $('#fb'), next = `<button class="primary wide" onclick="nextQ()">Continue</button>`;
+  const head = (t, icon) => `<h4>${icon} ${t}${gain ? `<span class="xp">+${gain} XP</span>` : ''}</h4>`;
+  fb.className = 'fbar ' + (ok ? 'ok' : 'bad');
+  if (q.type === 'nb') {
+    paint(x => x.id === q.id ? 'flag sel' : q.need.includes(x.id) ? (q.found.has(x.id) ? 'flag' : 'flag wrong') : S.p[x.id] ? '' : 'off');
+    const missed = q.need.filter(x => !q.found.has(x));
+    $('#giveup').remove();
+    fb.innerHTML = (ok ? head('Perfect!', '🎯') : head(`${q.found.size}/${q.need.length} found, ${q.miss} wrong`, '🧭'))
+      + (missed.length ? `<p>Missed (in red): ${missed.map(x => flagImg(x, 18) + ' ' + C[x].name).join(', ')}</p>` : '') + next;
+    return;
+  }
+  // show the answer: its flag painted in place, wrong pick in red
+  paint(x => x.id === q.id ? 'flag sel' : !ok && x.id === p ? 'wrong' : q.scope.includes(x.id) ? '' : S.p[x.id] ? 'flag off' : 'off');
+  document.querySelectorAll('.opts button').forEach((b, i) => {
+    b.disabled = true;
+    if (isRight(q, q.opts[i])) b.classList.add('right'); else if (q.opts[i] === p) b.classList.add('wrong');
+  });
+  let h = ok ? head(Q.combo >= 3 ? `${Q.combo} in a row!` : pick(PRAISE), Q.combo >= 3 ? '🔥' : '✅') + `<p>${flagImg(q.id, 20)} ${c.name}</p>` : head(`It's ${c.name}`, '❌');
+  if (!ok && C[p]) h += `<div class="cmp"><div>${flagImg(p, 46)}<br>You: ${C[p].name}</div><div>${flagImg(q.id, 46)}<br>Answer: ${c.name}</div></div>`;
+  if (c.fam.length) h += `<div>${c.fam.map(f => `<span class="tag">🧬 ${f.name}</span>`).join('')}</div>`;
+  if (c.twins && (!ok || q.type === 'twin')) h += `<p><small>👯 ${c.twins.tip}</small></p>`;
+  fb.innerHTML = h + (Q.fast ? '' : next);
+  if (Q.fast || (ok && S.set.auto)) Q.timer = setTimeout(nextQ, Q.fast ? (ok ? 400 : 1300) : 1300);
+}
+
+function result(icon, title, sub, ids = [], opts = {}) {
+  const xp = Q?.xp || 0, lvlUp = Q && lvlOf(S.xp) > Q.lvl0, score = Q?.n ? Q.right / Q.n : null;
+  session('result', '');
+  paint(x => ids.includes(x.id) ? 'flag sel' : homePaint(x));
+  ids.length ? zoomTo(ids) : zoomWorld();
+  const next = nextChunk(), due = learned().filter(isDue).length;
+  const ring = score !== null && !opts.noRing ? `<div class="ring" style="--p:${Math.round(score * 100)}"><span>${Math.round(score * 100)}%</span></div>` : `<div class="big-ic">${icon}</div>`;
+  $('#panel').innerHTML = `<div class="card pop">${ring}<h2>${score !== null && !opts.noRing ? icon + ' ' : ''}${title}</h2><p class="muted">${sub}</p>
+    ${xp ? `<span class="xpgain">+${xp} XP</span>` : ''}${lvlUp ? `<span class="xpgain" style="background:var(--gold)">⭐ Level ${lvlOf(S.xp)}!</span>` : ''}
+    <div style="margin-top:10px">${ids.map(id => flagImg(id, 26)).join('')}</div></div>
+    <div class="sticky"><div class="row" style="margin:0">${due ? `<button class="primary" style="flex:2" onclick="review()">Review ${due}</button>` : next ? `<button class="primary" style="flex:2" onclick="explore(${CHUNKS.indexOf(next)})">Next: ${next.name}</button>` : ''}
+    <button onclick="home()">Home</button></div></div>`;
+  if (opts.party || (score !== null && score >= 0.8) || lvlUp) confetti();
+}
+
+// ---- sessions ----
+function lesson() {
+  const ids = E.ch.ids, ch = E.ch, rung = Object.fromEntries(ids.map(id => [id, 0]));
+  run({
+    name: `${ch.name} · Practice`,
+    progress: () => ids.reduce((s, id) => s + rung[id], 0) / (ids.length * MASTER),
+    gen() {
+      const todo = ids.filter(id => rung[id] < MASTER);
+      if (!todo.length) return null;
+      let id = takeAgain();
+      if (!id || rung[id] >= MASTER) { const r = Math.min(...todo.map(i => rung[i])); id = pick(todo.filter(i => rung[i] === r), Q.lastId); }
+      return mkQ(id, ['f2n', 'm2f', 'n2m', 'f2m'][rung[id]], ids, rung[id] ? 3 : 2);
+    },
+    onResult(q, ok) { if (ok) rung[q.id]++; },
+    end() {
+      ids.forEach(id => { S.p[id] ??= { box: 1, due: TODAY + 1 }; });
+      addXP(50); S.lessonDay = TODAY; touchStreak(); save();
+      result('🎉', `${ch.name} learned!`, "Their flags are painted on your map now. When one starts to fade, it's time to review it.", ids, { party: true, noRing: true });
+    },
+  });
+}
+
+function reviewQ(id) {
+  const c = C[id], reg = regionIds(c.region), pool = reg.filter(x => S.p[x]);
+  const types = ['f2m', 'n2m', 'm2f', ...(c.twins?.ids.every(x => S.p[x]) ? ['twin'] : [])];
+  return mkQ(id, pick(types), reg, 4, pool.length >= 4 ? pool : reg);
+}
+function review() {
+  const due = shuffle(learned().filter(isDue)).slice(0, S.set.reviewSize || Infinity), missed = new Set();
+  let i = 0;
+  run({
+    name: 'Review',
+    progress: () => i / due.length,
+    gen() { const a = takeAgain(i >= due.length); return a ? reviewQ(a) : i < due.length ? reviewQ(due[i++]) : null; },
+    onResult(q, ok) {
+      const p = S.p[q.id];
+      if (!ok) { missed.add(q.id); p.box = 1; p.due = TODAY; }
+      else if (missed.has(q.id)) p.due = TODAY + 1;
+      else { p.box = Math.min(p.box + 1, 7); p.due = TODAY + INTERVALS[p.box]; }
+    },
+    end() {
+      addXP(20); touchStreak(); save();
+      result('💪', 'Review done', missed.size ? `${plural(missed.size, 'country')} you missed will come back tomorrow.` : 'Your map is bright again.', due);
+    },
+  });
+}
+
+function speed() {
+  const L = learned(), end = Date.now() + 60000;
+  run({
+    name: 'Speed Run', fast: true,
+    progress: () => Math.max(0, (end - Date.now()) / 60000),
+    gen() { if (Date.now() > end) return null; const id = pick(L, Q.lastId); return mkQ(id, pick(['f2m', 'n2m']), regionIds(C[id].region)); },
+    onResult() {},
+    end() {
+      const sc = Q.right, best = sc > S.best;
+      S.best = Math.max(S.best, sc); save();
+      result('⏱️', `${sc} in 60 seconds`, best ? 'New personal best! 🏅' : `Your best: ${S.best}`, [], { party: best, noRing: true });
+    },
+  });
+}
+
+const famPool = () => learned().filter(id => C[id].fam.length);
+function famSort() {
+  const pool = shuffle(famPool()).slice(0, 10);
+  let i = 0;
+  run({
+    name: 'Family Sort',
+    progress: () => i / pool.length,
+    gen() { return i < pool.length ? mkQ(pool[i], 'fam', [pool[i++]]) : null; },
+    onResult() {},
+    end() { result('🧬', 'Family Sort', `${Q.right}/${Q.n} right.`); },
+  });
+}
+
+const nbPool = () => learned().filter(id => C[id].nb.some(x => S.p[x]));
+function neighbours() {
+  const pool = shuffle(nbPool()).slice(0, 8);
+  let i = 0;
+  run({
+    name: 'Neighbours',
+    progress: () => i / pool.length,
+    gen() { if (i >= pool.length) return null; const id = pool[i++]; return { id, type: 'nb', scope: [], need: C[id].nb.filter(x => S.p[x]), found: new Set(), miss: 0 }; },
+    onResult() {},
+    end() { result('🧭', 'Neighbours', `${Q.right}/${Q.n} perfect.`); },
+  });
+}
+
+const twinPool = () => learned().filter(id => C[id].twins?.ids.every(x => S.p[x]));
+function twinDuel() {
+  const pool = twinPool(), n = 12;
+  let i = 0;
+  run({
+    name: 'Twin Duel', fast: true,
+    progress: () => i / n,
+    gen() { if (i++ >= n) return null; const id = pick(pool, Q.lastId); return mkQ(id, 'twin', C[id].twins.ids); },
+    onResult() {},
+    end() { result('👯', 'Twin Duel', `${Q.right}/${Q.n} right.`); },
+  });
+}
+
+// ---- Play tab ----
+const GAMES = [
+  ['🧬', 'Family Sort', 'Sort flags into their families', 'famSort', () => famPool().length >= 4, 'Learn 4 countries from a flag family', 'linear-gradient(135deg,#a78bfa,#7c3aed)'],
+  ['👯', 'Twin Duel', 'Quick-fire lookalike flags', 'twinDuel', () => twinPool().length >= 2, 'Learn both flags of a lookalike pair, e.g. Norway & Iceland', 'linear-gradient(135deg,#f9a8d4,#db2777)'],
+  ['🧭', 'Neighbours', 'Tap every country that borders it', 'neighbours', () => nbPool().length >= 3, 'Learn a few countries that border each other', 'linear-gradient(135deg,#6ee7b7,#059669)'],
+  ['⏱️', 'Speed Run', '60 seconds, as many as you can', 'speed', () => learned().length >= 4, 'Learn 4 countries', 'linear-gradient(135deg,#fcd34d,#f59e0b)'],
+];
+function play() {
+  tab('play');
+  $('#panel').innerHTML = `<h2>Play 🎮</h2><p class="muted" style="margin-top:0">Games only use countries you've already learned.</p>`
+    + GAMES.map(([ic, t, d, fn, ok, lock, col]) => {
+      const on = ok();
+      return `<button class="game" ${on ? `onclick="${fn}()"` : 'disabled'}><span class="gi" style="--c:${col}">${ic}</span><span style="flex:1"><b>${t}</b>${fn === 'speed' && S.best ? ` <small class="muted">· best ${S.best}</small>` : ''}<br><small class="muted">${on ? d : '🔒 ' + lock}</small></span>${on ? '<span class="muted">›</span>' : ''}</button>`;
+    }).join('');
+}
+
+// ---- Flags tab ----
+function families() {
+  tab('families');
+  const fl = id => `<span class="fl" onclick="showInfo('${id}')">${flagImg(id, 32)}<br>${C[id].name}</span>`;
+  $('#panel').innerHTML = `<h2>Flag families 🧬</h2><p class="muted" style="margin-top:0">Flags that share an origin. Tap one to find it on the map.</p>`
+    + FAMILIES.map(f => `<div class="card l"><h3>${f.name}</h3><p class="muted" style="margin:4px 0 6px"><small>${f.note}</small></p>${f.ids.map(fl).join('')}</div>`).join('')
+    + `<h2 style="margin-top:28px">Lookalikes 👯</h2><p class="muted" style="margin-top:0">Easy to mix up, and how to tell them apart.</p>`
+    + TWINS.map(([m, tip]) => `<div class="card l">${m.split(' ').map(fl).join('')}<p style="margin:6px 0 0"><small>${tip}</small></p></div>`).join('');
+}
+
+// ---- Settings tab ----
+function settings() {
+  tab('settings');
+  const s = S.set;
+  const seg = (k, opts) => `<div class="seg">${opts.map(([v, l]) => `<button class="${s[k] === v ? 'on' : ''}" onclick="setSet('${k}',${typeof v === 'string' ? `'${v}'` : v})">${l}</button>`).join('')}</div>`;
+  const tog = (k, l, d = '') => `<label class="set"><span>${l}${d ? `<small>${d}</small>` : ''}</span><input type="checkbox" class="sw" ${s[k] ? 'checked' : ''} onchange="setSet('${k}',this.checked)"></label>`;
+  $('#panel').innerHTML = `<h2>Settings ⚙️</h2>
+    <div class="card l">
+      <div class="set"><span>Theme</span>${seg('theme', [['system', 'Auto'], ['light', 'Light'], ['dark', 'Dark']])}</div>
+      ${tog('sound', 'Sound effects')}${tog('vibrate', 'Vibration', 'Phones only')}
+    </div>
+    <div class="card l">
+      ${tog('auto', 'Auto-advance', 'Go to the next question after a right answer')}
+      <div class="set"><span>Reviews per session<small>Leftover due countries wait for the next session</small></span>${seg('reviewSize', [[10, '10'], [20, '20'], [40, '40'], [0, 'All']])}</div>
+    </div>
+    <div class="card l"><h3>Your progress</h3>
+      <p class="muted" style="margin:4px 0"><small>${plural(learned().length, 'country')} learned · ${S.xp} XP. Saved on this device only, so back it up now and then.</small></p>
+      <div class="row"><button onclick="exportData()">⬇️ Back up</button>
+      <label class="btn">⬆️ Restore<input type="file" accept=".json,application/json" hidden onchange="importData(this.files[0])"></label></div>
+      <button class="danger" onclick="resetAll()">Reset all progress</button>
+    </div>
+    <button class="wide" onclick="tab('home');intro()">❓ How FlagMap works</button>
+    <p class="muted" style="text-align:center"><small>Flags: flagcdn.com · Map: Natural Earth</small></p>`;
+}
+
+// ---- boot ----
+(async () => {
+  applyTheme();
+  navigator.storage?.persist?.();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  const topo = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json');
+  const all = topojson.feature(topo, topo.objects.countries).features;
+  const nbs = topojson.neighbors(topo.objects.countries.geometries);
+  const geo = all.filter(f => f.properties.name !== 'Antarctica');
+  const el = $('#map'); W = el.clientWidth; H = el.clientHeight;
+  svg.attr('viewBox', `0 0 ${W} ${H}`); // keeps the map scaled on rotate/resize
+  path = d3.geoPath(d3.geoNaturalEarth1().fitExtent([[6, 6], [W - 6, H - 28]], { type: 'Sphere' }));
+  g.append('path').datum({ type: 'Sphere' }).attr('class', 'sphere').attr('d', path);
+  g.append('path').datum(d3.geoGraticule10()).attr('class', 'grat').attr('d', path);
+  const byNum = {}, byName = {};
+  // two shapes share code 036 (Australia + Ashmore Is.): keep the bigger one
+  geo.forEach(f => { const o = byNum[+f.id]; if (f.id && !(o && d3.geoArea(o) > d3.geoArea(f))) byNum[+f.id] = f; byName[f.properties.name] = f; });
+  const list = Object.values(C);
+  list.forEach(c => {
+    c.f = byNum[+c.num] || byName[c.name] || { type: 'Feature', geometry: { type: 'Point', coordinates: POINTS[c.id] } };
+    c.box = mainBounds(c.f);
+    c.small = path.area(c.f) < 2;
+  });
+  const byFeat = new Map(list.map(c => [c.f, c.id]));
+  list.forEach(c => { c.nb = (nbs[all.indexOf(c.f)] || []).map(j => byFeat.get(all[j])).filter(Boolean); });
+  const used = new Set(list.map(c => c.f));
+  g.selectAll('path.land').data(geo.filter(f => !used.has(f))).join('path').attr('class', 'land').attr('d', path);
+  g.selectAll('path.c').data(list.filter(c => c.f.geometry.type !== 'Point')).join('path').attr('class', 'c').attr('d', c => path(c.f)).on('click', (e, c) => onTap(c.id));
+  g.selectAll('circle.mk').data(list.filter(c => c.small)).join('circle').attr('class', 'mk c').attr('r', 4.5)
+    .attr('cx', c => (c.box[0][0] + c.box[1][0]) / 2).attr('cy', c => (c.box[0][1] + c.box[1][1]) / 2).on('click', (e, c) => onTap(c.id));
+  home();
+})();
+</script>
+</body>
+</html>
