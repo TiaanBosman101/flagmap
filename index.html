@@ -40,6 +40,7 @@ header{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area
 /* map */
 #map{flex:0 0 calc(40dvh + 22px);background:var(--sea);touch-action:none;position:relative;overflow:hidden}
 #map svg{width:100%;height:100%;display:block}
+body.intro #map{flex-basis:22dvh}
 .sphere{fill:var(--sea2)}
 .grat{fill:none;stroke:var(--grat);stroke-width:.6;vector-effect:non-scaling-stroke;pointer-events:none}
 .land,.c{fill:var(--land);stroke:var(--line);stroke-width:.6;vector-effect:non-scaling-stroke;transition:opacity .3s,fill .3s}
@@ -90,7 +91,7 @@ button.danger{background:none;color:var(--bad);box-shadow:none;width:100%;margin
 button.wide{width:100%}
 .row{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
 .row button,.row .btn{flex:1}
-.sticky{position:sticky;bottom:-28px;padding:14px 0 28px;margin-bottom:-28px;background:linear-gradient(transparent,var(--bg) 35%)}
+.sticky{position:sticky;z-index:5;bottom:-28px;padding:14px 0 28px;margin-bottom:-28px;background:linear-gradient(transparent,var(--bg) 35%)}
 
 /* cards */
 .card{background:var(--card);border-radius:22px;padding:18px;margin:12px 0;box-shadow:var(--shadow);text-align:center}
@@ -152,7 +153,7 @@ button.right{background:var(--ok);border-color:var(--okd)!important;color:#fff;b
 button.wrong{background:var(--bad);border-color:var(--badd)!important;color:#fff;box-shadow:0 4px 0 var(--badd)!important;opacity:1!important}
 .prompt{font-size:1.05em;font-weight:800;margin:4px 0}
 #fb:empty{display:none}
-.fbar{position:sticky;bottom:-28px;margin:16px -16px -28px!important;max-width:none!important;padding:16px 16px calc(28px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;animation:up .25s ease-out;text-align:left}
+.fbar{position:sticky;z-index:5;bottom:-28px;margin:16px -16px -28px!important;max-width:none!important;padding:16px 16px calc(28px + env(safe-area-inset-bottom));border-radius:24px 24px 0 0;animation:up .25s ease-out;text-align:left}
 .fbar.ok{background:var(--okbg)}.fbar.bad{background:var(--badbg)}
 .fbar>*{max-width:608px;margin-left:auto;margin-right:auto}
 .fbar h4{margin:0;font-size:1.25em;font-weight:900;display:flex;align-items:center;gap:8px}
@@ -265,6 +266,7 @@ const DEFAULTS = { theme: 'system', sound: true, vibrate: true, auto: true, revi
 let S = {};
 try { S = JSON.parse(localStorage.getItem('flagmap')) || {}; } catch {}
 S.p ??= {}; S.streak ??= 0; S.last ??= 0; S.best ??= 0; S.xp ??= 0;
+S.sd ??= {}; // Sudden Death records per area: { best, fc: flawless country count, ft: fastest flawless ms }
 S.set = { ...DEFAULTS, ...S.set };
 if (S.mute) { S.set.sound = false; delete S.mute; }
 const save = () => { try { localStorage.setItem('flagmap', JSON.stringify(S)); } catch {} };
@@ -331,13 +333,18 @@ function importData(file) {
     const d = JSON.parse(t), p = {};
     for (const [k, v] of Object.entries(d.p || {})) if (C[k] && Number.isFinite(v?.box) && Number.isFinite(v?.due)) p[k] = { box: Math.min(7, Math.max(1, v.box | 0)), due: v.due | 0 };
     if (!Object.keys(p).length) throw 0;
-    S = { ...S, p, streak: +d.streak || 0, last: +d.last || 0, best: +d.best || 0, xp: +d.xp || 0, intro: 1 };
+    const sd = {};
+    for (const k of ['World', ...REGIONS.map(r => r[0])]) {
+      const r = d.sd?.[k];
+      if (Number.isFinite(r?.best)) sd[k] = { best: r.best | 0, ...(Number.isFinite(r.fc) && Number.isFinite(r.ft) ? { fc: r.fc | 0, ft: r.ft | 0 } : {}) };
+    }
+    S = { ...S, p, sd, streak: +d.streak || 0, last: +d.last || 0, best: +d.best || 0, xp: +d.xp || 0, intro: 1 };
     save(); home(`Progress restored: ${plural(Object.keys(p).length, 'country')}.`);
   }).catch(() => alert("That file isn't a FlagMap backup."));
 }
 function resetAll() {
   if (!confirm('Delete all your progress? This cannot be undone.')) return;
-  S = { p: {}, streak: 0, last: 0, best: 0, xp: 0, set: S.set };
+  S = { p: {}, sd: {}, streak: 0, last: 0, best: 0, xp: 0, set: S.set };
   save(); home();
 }
 
@@ -417,7 +424,7 @@ function header(title) {
   $('#x').hidden = !s; $('#logo').hidden = s; $('#htitle').textContent = s ? title : '';
   $('#chips').innerHTML = `<span class="chip" title="Day streak">🔥 ${streak()}</span><span class="lv" style="--p:${lv.pct}" title="Level ${lv.l} · ${lv.have}/${lv.need} XP"><b>${lv.l}</b></span>`;
 }
-function leave() { clearTimeout(Q?.timer); Q = null; $('#tip').innerHTML = ''; $('#panel').scrollTop = 0; }
+function leave() { document.body.classList.remove("intro"); clearTimeout(Q?.timer); clearInterval(Q?.tick); Q = null; $('#tip').innerHTML = ''; $('#panel').scrollTop = 0; }
 function tab(name) {
   leave(); mode = name; header();
   document.body.classList.remove('session');
@@ -437,6 +444,7 @@ const nextChunk = () => CHUNKS.find(ch => !ch.ids.every(id => S.p[id]));
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; };
 
 function intro() {
+  document.body.classList.add("intro");
   const next = nextChunk() || CHUNKS[0];
   $('#panel').innerHTML = `<div class="hero pop"><h2>Welcome to FlagMap 👋</h2><p style="margin:8px 0 0;position:relative;z-index:1">Learn where every country is and what its flag looks like, one small group of neighbours at a time. ${CHUNKS.length} groups take you around the world.</p></div>
     <div class="card l"><div class="steps">
@@ -444,7 +452,7 @@ function intro() {
       <div><span class="node">2</span><span><b>Practice</b><br><small class="muted">Easy questions first, then harder: pick the name, pick the flag, then find it on the map.</small></span></div>
       <div><span class="node">3</span><span><b>Review</b><br><small class="muted">Learned flags get painted on your map. When one fades, review it so you don't forget. A few minutes a day is enough.</small></span></div>
     </div></div>
-    <div class="sticky"><button class="primary wide" onclick="S.intro=1;save();explore(${CHUNKS.indexOf(next)})">Start: ${next.name} →</button>
+    <div style="padding-bottom:8px"><button class="primary wide" onclick="S.intro=1;save();explore(${CHUNKS.indexOf(next)})">Start: ${next.name} →</button>
     <button class="ghost wide" onclick="S.intro=1;save();home()">Look around first</button></div>`;
 }
 
@@ -530,7 +538,10 @@ function mkQ(id, type, scope, k = 3, pool = scope) {
   return q;
 }
 const isRight = (q, o) => q.type === 'nb' ? o === true : q.type === 'fam' ? C[q.id].fam.some(f => f.name === o) : o === q.id;
-const qtop = () => `<div class="qtop"><div class="bar"><i style="width:${Q.progress() * 100}%"></i></div><span class="combo">${Q.combo >= 2 ? `🔥${Q.combo}` : ''}</span></div>`;
+const fmt = ms => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
+const comboText = () => Q.sudden ? `💀 ${Q.right}` : Q.combo >= 2 ? `🔥${Q.combo}` : '';
+const qtop = () => `<div class="qtop">${Q.sudden ? `<span class="combo">${comboText()}</span>` : ''}<div class="bar"><i style="width:${Q.progress() * 100}%"></i></div>`
+  + (Q.sudden ? `<span class="combo" id="clock">⏱ ${fmt(Date.now() - Q.t0)}</span>` : `<span class="combo">${comboText()}</span>`) + '</div>';
 
 function nbPaint(q, wrongId) {
   paint(x => x.id === q.id ? 'hl' : q.found.has(x.id) ? 'flag' : x.id === wrongId ? 'wrong' : S.p[x.id] ? '' : 'off');
@@ -579,12 +590,13 @@ function answer(p) {
   if (ok) { Q.right++; Q.combo++; gain = 10 + Math.min(Q.combo - 1, 5) * 2; addXP(gain); buzz(12); }
   else { Q.combo = 0; Q.again.push({ id: q.id, at: Q.n + 3 }); buzz(120); }
   if (q.type !== 'nb') beep(ok, Q.combo);
+  q.pick = p;
   Q.onResult(q, ok); save();
   const qc = $('#qc');
   qc.classList.remove('pop'); void qc.offsetWidth; // restart the animation
   qc.classList.add(ok ? 'pop' : 'shake');
-  $('.combo').textContent = Q.combo >= 2 ? `🔥${Q.combo}` : '';
-  const fb = $('#fb'), next = `<button class="primary wide" onclick="nextQ()">Continue</button>`;
+  $('.combo').textContent = comboText();
+  const fb = $('#fb'), next = `<button class="primary wide" onclick="nextQ()">${Q.dead ? '💀 See results' : 'Continue'}</button>`;
   const head = (t, icon) => `<h4>${icon} ${t}${gain ? `<span class="xp">+${gain} XP</span>` : ''}</h4>`;
   fb.className = 'fbar ' + (ok ? 'ok' : 'bad');
   if (q.type === 'nb') {
@@ -606,7 +618,7 @@ function answer(p) {
   if (c.fam.length) h += `<div>${c.fam.map(f => `<span class="tag">🧬 ${f.name}</span>`).join('')}</div>`;
   if (c.twins && (!ok || q.type === 'twin')) h += `<p><small>👯 ${c.twins.tip}</small></p>`;
   fb.innerHTML = h + (Q.fast ? '' : next);
-  if (Q.fast || (ok && S.set.auto)) Q.timer = setTimeout(nextQ, Q.fast ? (ok ? 400 : 1300) : 1300);
+  if (Q.fast || (ok && (S.set.auto || Q.sudden))) Q.timer = setTimeout(nextQ, Q.fast ? (ok ? 400 : 1300) : Q.sudden ? 450 : 1300);
 }
 
 function result(icon, title, sub, ids = [], opts = {}) {
@@ -616,11 +628,11 @@ function result(icon, title, sub, ids = [], opts = {}) {
   ids.length ? zoomTo(ids) : zoomWorld();
   const next = nextChunk(), due = learned().filter(isDue).length;
   const ring = score !== null && !opts.noRing ? `<div class="ring" style="--p:${Math.round(score * 100)}"><span>${Math.round(score * 100)}%</span></div>` : `<div class="big-ic">${icon}</div>`;
-  $('#panel').innerHTML = `<div class="card pop">${ring}<h2>${score !== null && !opts.noRing ? icon + ' ' : ''}${title}</h2><p class="muted">${sub}</p>
+  $('#panel').innerHTML = `<div class="card pop">${ring}<h2>${score !== null && !opts.noRing ? icon + ' ' : ''}${title}</h2><p class="muted">${sub}</p>${opts.extra || ''}
     ${xp ? `<span class="xpgain">+${xp} XP</span>` : ''}${lvlUp ? `<span class="xpgain" style="background:var(--gold)">⭐ Level ${lvlOf(S.xp)}!</span>` : ''}
-    <div style="margin-top:10px">${ids.map(id => flagImg(id, 26)).join('')}</div></div>
-    <div class="sticky"><div class="row" style="margin:0">${due ? `<button class="primary" style="flex:2" onclick="review()">Review ${due}</button>` : next ? `<button class="primary" style="flex:2" onclick="explore(${CHUNKS.indexOf(next)})">Next: ${next.name}</button>` : ''}
-    <button onclick="home()">Home</button></div></div>`;
+    ${opts.extra ? '' : `<div style="margin-top:10px">${ids.map(id => flagImg(id, 26)).join('')}</div>`}</div>
+    <div class="sticky"><div class="row" style="margin:0">${opts.buttons || `${due ? `<button class="primary" style="flex:2" onclick="review()">Review ${due}</button>` : next ? `<button class="primary" style="flex:2" onclick="explore(${CHUNKS.indexOf(next)})">Next: ${next.name}</button>` : ''}
+    <button onclick="home()">Home</button>`}</div></div>`;
   if (opts.party || (score !== null && score >= 0.8) || lvlUp) confetti();
 }
 
@@ -646,10 +658,52 @@ function lesson() {
   });
 }
 
-function reviewQ(id) {
+function reviewQ(id, more = []) {
   const c = C[id], reg = regionIds(c.region), pool = reg.filter(x => S.p[x]);
-  const types = ['f2m', 'n2m', 'm2f', ...(c.twins?.ids.every(x => S.p[x]) ? ['twin'] : [])];
+  const types = ['f2m', 'n2m', 'm2f', ...more, ...(c.twins?.ids.every(x => S.p[x]) ? ['twin'] : [])];
   return mkQ(id, pick(types), reg, 4, pool.length >= 4 ? pool : reg);
+}
+
+// ---- Sudden Death: every unlocked country in an area once, one mistake ends the run ----
+const sdIds = key => learned().filter(id => key === 'World' || C[id].region === key);
+function suddenPick() {
+  tab('play');
+  const row = (key, label, icon) => {
+    const n = sdIds(key).length, r = S.sd[key], on = n >= 4;
+    const rec = !r ? 'No runs yet' : r.fc === n ? `🏆 Flawless · ⚡ ${fmt(r.ft)}` : `Best ${r.best}/${n}`;
+    return `<button class="game" ${on ? `onclick="suddenDeath('${key}')"` : 'disabled'}><span class="gi" style="--c:var(--card2)">${icon}</span><span style="flex:1"><b>${label}</b><br><small class="muted">${on ? `${plural(n, 'country')} · ${rec}` : `🔒 Learn ${4 - n} more here`}</small></span>${on ? '<span class="muted">›</span>' : ''}</button>`;
+  };
+  $('#panel').innerHTML = `<button class="ghost" style="padding:4px 0" onclick="play()">‹ Games</button><h2>💀 Sudden Death</h2>
+    <p class="muted" style="margin-top:0">Every country you've unlocked in the area, in random order. One mistake and the run is over. Get them all to go flawless, then beat your time.</p>`
+    + row('World', 'Whole world', '🌍') + REGIONS.map(([r]) => row(r, r, REGION_ICON[r])).join('');
+}
+function suddenDeath(key) {
+  const ids = shuffle(sdIds(key)), total = ids.length;
+  let i = 0;
+  run({
+    name: `💀 ${key === 'World' ? 'Whole world' : key}`, sudden: true, t0: Date.now(),
+    progress: () => i / total,
+    gen() { if (Q.dead || i >= total) { Q.time ??= Date.now() - Q.t0; return null; } return reviewQ(ids[i++], ['f2n']); },
+    onResult(q, ok) { if (!ok) { Q.dead = q; Q.time = Date.now() - Q.t0; } },
+    end() {
+      const sc = Q.right, miss = Q.dead, t = Q.time, r = S.sd[key] ??= { best: 0 };
+      let record = false;
+      if (sc > r.best) { r.best = sc; record = true; }
+      if (!miss && (!r.fc || total > r.fc || (total === r.fc && t < r.ft))) { r.fc = total; r.ft = t; record = true; }
+      if (!miss) addXP(100);
+      save();
+      const buttons = `<button class="primary" style="flex:2" onclick="suddenDeath('${key}')">💀 Try again</button><button onclick="suddenPick()">Change area</button>`;
+      if (miss) {
+        const p = miss.pick, c = C[miss.id];
+        const extra = `<div class="cmp">${C[p] ? `<div>${flagImg(p, 46)}<br>You: ${C[p].name}</div>` : ''}<div>${flagImg(miss.id, 46)}<br>Answer: ${c.name}</div></div>`
+          + (c.twins ? `<p><small>👯 ${c.twins.tip}</small></p>` : '');
+        result('💀', `Game over · ${sc}/${total}`, record ? 'New best score! 🏅' : `Your best here: ${r.best}/${total}`, [miss.id], { noRing: true, party: record && sc > 0, extra, buttons });
+      } else {
+        result('🏆', 'Flawless!', `All ${plural(total, 'country')} in ${fmt(t)}.` + (record ? ' New record! ⚡' : ` Record: ${fmt(r.ft)}`), [], { noRing: true, party: true, buttons });
+      }
+    },
+  });
+  Q.tick = setInterval(() => { const el = $('#clock'); if (el) el.textContent = `⏱ ${fmt(Date.now() - Q.t0)}`; }, 500);
 }
 function review() {
   const due = shuffle(learned().filter(isDue)).slice(0, S.set.reviewSize || Infinity), missed = new Set();
@@ -731,6 +785,7 @@ const GAMES = [
   ['👯', 'Twin Duel', 'Quick-fire lookalike flags', 'twinDuel', () => twinPool().length >= 2, 'Learn both flags of a lookalike pair, e.g. Norway & Iceland', 'linear-gradient(135deg,#f9a8d4,#db2777)'],
   ['🧭', 'Neighbours', 'Tap every country that borders it', 'neighbours', () => nbPool().length >= 3, 'Learn a few countries that border each other', 'linear-gradient(135deg,#6ee7b7,#059669)'],
   ['⏱️', 'Speed Run', '60 seconds, as many as you can', 'speed', () => learned().length >= 4, 'Learn 4 countries', 'linear-gradient(135deg,#fcd34d,#f59e0b)'],
+  ['💀', 'Sudden Death', 'One mistake and the run is over', 'suddenPick', () => learned().length >= 4, 'Learn 4 countries', 'linear-gradient(135deg,#f87171,#7f1d1d)'],
 ];
 function play() {
   tab('play');
