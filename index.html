@@ -44,6 +44,7 @@ body.intro #map{flex-basis:22dvh}
 .sphere{fill:var(--sea2)}
 .grat{fill:none;stroke:var(--grat);stroke-width:.6;vector-effect:non-scaling-stroke;pointer-events:none}
 .land,.c{fill:var(--land);stroke:var(--line);stroke-width:.6;vector-effect:non-scaling-stroke;transition:opacity .3s,fill .3s}
+.c path{vector-effect:non-scaling-stroke;transition:fill .3s}
 .land{pointer-events:none;opacity:.7}
 .c{cursor:pointer}
 @media (hover:hover){.c:hover{filter:brightness(1.12)}}
@@ -54,8 +55,8 @@ body.intro #map{flex-basis:22dvh}
 .c.hl{fill:var(--acc);animation:pulse 1.4s ease-in-out infinite}
 .c.sel{stroke:#fff;stroke-width:2.5}
 .c.due{opacity:.3}
-.c.right{fill:var(--ok)!important}
-.c.wrong{fill:var(--bad)!important}
+.c.right,.c.right path{fill:var(--ok)!important}
+.c.wrong,.c.wrong path{fill:var(--bad)!important}
 @keyframes pulse{50%{opacity:.6}}
 .mapctl{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:8px}
 .mapctl button{width:38px;height:38px;padding:0;border-radius:50%;font-size:1.15em;background:color-mix(in srgb,var(--card) 82%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--shadow)}
@@ -146,6 +147,14 @@ button.wide{width:100%}
 /* quiz */
 .qtop{display:flex;align-items:center;gap:12px}
 .combo{font-weight:900;color:var(--gold);min-width:44px;text-align:right}
+.qts{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px}
+.qts button{padding:8px 12px;font-size:.88em;border-radius:20px;box-shadow:none;background:var(--card2)}
+.qts button.on{background:var(--acc);color:#fff}
+#ti{width:100%;margin-top:14px;padding:14px 16px;font:inherit;font-size:1.1em;font-weight:800;color:var(--fg);background:var(--card2);border:2px solid var(--line2);border-radius:14px;outline:none}
+#ti:focus{border-color:var(--acc)}
+.sug{display:grid;gap:6px;margin-top:8px}
+.sug button{text-align:left;box-shadow:none;background:var(--card2);padding:10px 14px}
+.sug button:first-child{outline:2px solid var(--acc)}
 .opts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
 .opts button{min-height:60px;border:2px solid var(--line2);box-shadow:0 4px 0 var(--line2)}
 .opts button:active:not(:disabled){box-shadow:0 1px 0 var(--line2)}
@@ -262,11 +271,13 @@ const regionIds = r => Object.keys(C).filter(id => C[id].region === r);
 const TOTAL = Object.keys(C).length;
 
 // ---- progress, XP & settings ----
-const DEFAULTS = { theme: 'system', sound: true, vibrate: true, auto: true, reviewSize: 20 };
+const DEFAULTS = { theme: 'system', sound: true, vibrate: true, auto: true, reviewSize: 20, qt: 'mixed' };
 let S = {};
 try { S = JSON.parse(localStorage.getItem('flagmap')) || {}; } catch {}
-S.p ??= {}; S.streak ??= 0; S.last ??= 0; S.best ??= 0; S.xp ??= 0;
-S.sd ??= {}; // Sudden Death records per area: { best, fc: flawless country count, ft: fastest flawless ms }
+S.p ??= {}; S.streak ??= 0; S.last ??= 0; S.xp ??= 0;
+if (typeof S.best === 'number') { S.speed = S.best ? { map: S.best } : {}; delete S.best; } // old Speed Run was map-only
+S.speed ??= {}; // Speed Run best per question type
+S.sd ??= {}; // Sudden Death records per area (+ '|type' unless mixed): { best, fc: flawless country count, ft: fastest flawless ms }
 S.set = { ...DEFAULTS, ...S.set };
 if (S.mute) { S.set.sound = false; delete S.mute; }
 const save = () => { try { localStorage.setItem('flagmap', JSON.stringify(S)); } catch {} };
@@ -333,18 +344,22 @@ function importData(file) {
     const d = JSON.parse(t), p = {};
     for (const [k, v] of Object.entries(d.p || {})) if (C[k] && Number.isFinite(v?.box) && Number.isFinite(v?.due)) p[k] = { box: Math.min(7, Math.max(1, v.box | 0)), due: v.due | 0 };
     if (!Object.keys(p).length) throw 0;
-    const sd = {};
-    for (const k of ['World', ...REGIONS.map(r => r[0])]) {
-      const r = d.sd?.[k];
-      if (Number.isFinite(r?.best)) sd[k] = { best: r.best | 0, ...(Number.isFinite(r.fc) && Number.isFinite(r.ft) ? { fc: r.fc | 0, ft: r.ft | 0 } : {}) };
+    const sd = {}, speed = {};
+    for (const [t] of QTYPES) {
+      if (Number.isFinite(d.speed?.[t])) speed[t] = d.speed[t] | 0;
+      for (const a of ['World', ...REGIONS.map(r => r[0])]) {
+        const k = sdKey(a, t), r = d.sd?.[k];
+        if (Number.isFinite(r?.best)) sd[k] = { best: r.best | 0, ...(Number.isFinite(r.fc) && Number.isFinite(r.ft) ? { fc: r.fc | 0, ft: r.ft | 0 } : {}) };
+      }
     }
-    S = { ...S, p, sd, streak: +d.streak || 0, last: +d.last || 0, best: +d.best || 0, xp: +d.xp || 0, intro: 1 };
+    if (Number.isFinite(d.best) && d.best) speed.map = Math.max(speed.map || 0, d.best | 0);
+    S = { ...S, p, sd, speed, streak: +d.streak || 0, last: +d.last || 0, xp: +d.xp || 0, intro: 1 };
     save(); home(`Progress restored: ${plural(Object.keys(p).length, 'country')}.`);
   }).catch(() => alert("That file isn't a FlagMap backup."));
 }
 function resetAll() {
   if (!confirm('Delete all your progress? This cannot be undone.')) return;
-  S = { p: {}, sd: {}, streak: 0, last: 0, best: 0, xp: 0, set: S.set };
+  S = { p: {}, sd: {}, speed: {}, streak: 0, last: 0, xp: 0, set: S.set };
   save(); home();
 }
 
@@ -359,11 +374,23 @@ svg.call(zoom).on('dblclick.zoom', null);
 const zoomBy = f => svg.transition().duration(250).call(zoom.scaleBy, f);
 const resetView = () => lastView ? zoomTo(lastView, lastView.k) : zoomWorld();
 
-function mainBounds(f) { // largest polygon only, so France ≠ French Guiana and Russia/US/Fiji don't span the antimeridian
-  if (f.geometry.type !== 'MultiPolygon') return path.bounds(f);
-  let best, ba = -1;
-  for (const coordinates of f.geometry.coordinates) { const p = { type: 'Polygon', coordinates }, a = path.area(p); if (a > ba) { ba = a; best = p; } }
-  return path.bounds(best);
+// Splits a country's projected outline into groups of nearby rings (mainland + its islands, Alaska, Hawaii,
+// each side of the antimeridian…). Each group gets one whole flag, so no island shows a repeated scrap.
+function parts(f) {
+  const rings = path(f).split(/(?=M)/).map(d => {
+    const n = d.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/g).map(Number), xs = n.filter((_, i) => !(i % 2)), ys = n.filter((_, i) => i % 2);
+    const box = [[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]];
+    return { d, box, a: (box[1][0] - box[0][0]) * (box[1][1] - box[0][1]) };
+  }).sort((p, q) => q.a - p.a);
+  const out = [];
+  for (const r of rings) {
+    const [[a, b], [c, d]] = r.box;
+    const k = out.find(({ box: [[x0, y0], [x1, y1]] }) => { const m = Math.max(x1 - x0, y1 - y0) / 4; return a < x1 + m && c > x0 - m && b < y1 + m && d > y0 - m; });
+    if (!k) { out.push({ d: r.d, box: r.box }); continue; }
+    k.d += r.d;
+    k.box = [[Math.min(k.box[0][0], a), Math.min(k.box[0][1], b)], [Math.max(k.box[1][0], c), Math.max(k.box[1][1], d)]];
+  }
+  return out;
 }
 
 function zoomTo(ids, maxK = 40) {
@@ -376,14 +403,14 @@ function zoomTo(ids, maxK = 40) {
 }
 function zoomWorld() { lastView = null; svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity); }
 
-function flagPat(c, mk) {
-  const id = (mk ? 'q' : 'p') + c.id;
+function flagPat(c, i) { // i: index into c.parts, or 'mk' for the microstate marker
+  const id = `p${c.id}${i}`;
   if (!document.getElementById(id)) {
     const p = defs.append('pattern').attr('id', id);
     const img = p.append('image').attr('href', flagUrl(c.id));
-    if (mk) { p.attr('patternContentUnits', 'objectBoundingBox').attr('width', 1).attr('height', 1); img.attr('width', 1).attr('height', 1).attr('preserveAspectRatio', 'none'); }
+    if (i === 'mk') { p.attr('patternContentUnits', 'objectBoundingBox').attr('width', 1).attr('height', 1); img.attr('width', 1).attr('height', 1).attr('preserveAspectRatio', 'none'); }
     else {
-      const [[x0, y0], [x1, y1]] = c.box;
+      const [[x0, y0], [x1, y1]] = c.parts[i].box;
       p.attr('patternUnits', 'userSpaceOnUse').attr('x', x0).attr('y', y0).attr('width', x1 - x0).attr('height', y1 - y0);
       img.attr('width', x1 - x0).attr('height', y1 - y0).attr('preserveAspectRatio', 'xMidYMid slice');
     }
@@ -394,9 +421,10 @@ function flagPat(c, mk) {
 // fn(country) -> space-separated classes; "flag" paints the country with its flag
 function paint(fn) {
   g.selectAll('.c').each(function (c) {
-    const cls = fn(c) || '', mk = this.tagName === 'circle';
+    const cls = fn(c) || '', mk = this.tagName === 'circle', flag = /\bflag\b/.test(cls);
     this.setAttribute('class', (mk ? 'mk ' : '') + 'c ' + cls);
-    this.style.fill = /\bflag\b/.test(cls) ? flagPat(c, mk) : '';
+    if (mk) this.style.fill = flag ? flagPat(c, 'mk') : '';
+    else [...this.children].forEach((el, i) => { el.style.fill = flag ? flagPat(c, i) : ''; });
   });
 }
 const homePaint = x => S.p[x.id] ? 'flag' + (isDue(x.id) ? ' due' : '') : '';
@@ -537,6 +565,31 @@ function mkQ(id, type, scope, k = 3, pool = scope) {
   if (type === 'fam') q.opts = shuffle([pick(c.fam).name, ...shuffle(FAMILIES.filter(f => !c.fam.includes(f))).slice(0, 3).map(f => f.name)]);
   return q;
 }
+// ---- question types (Sudden Death & Speed Run) ----
+const QTYPES = [['mixed', '🎲', 'Mixed', null], ['map', '🗺️', 'Find on map', ['f2m', 'n2m']], ['flag', '🏳️', 'Pick the flag', ['m2f']],
+  ['name', '🔤', 'Pick the name', ['f2n']], ['tmap', '⌨️', 'Type from map', ['m2t']], ['tflag', '✍️', 'Type from flag', ['f2t']]];
+const qtInfo = t => QTYPES.find(x => x[0] === t) || QTYPES[0];
+const sdKey = (area, t) => t === 'mixed' ? area : `${area}|${t}`;
+const qtPicker = re => `<div class="qts">${QTYPES.map(([v, ic, l]) => `<button class="${S.set.qt === v ? 'on' : ''}" onclick="S.set.qt='${v}';save();${re}()">${ic} ${l}</button>`).join('')}</div>`;
+
+const norm = s => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+const ALIAS = { us: 'USA America United States of America', gb: 'UK Britain Great Britain England', cd: 'DRC Congo Kinshasa Zaire', cg: 'Congo Brazzaville',
+  cz: 'Czech Republic', ci: 'Ivory Coast', mm: 'Burma', sz: 'Swaziland', nl: 'Holland', ae: 'UAE Emirates', mk: 'Macedonia', tl: 'East Timor',
+  cv: 'Cabo Verde', va: 'Holy See', kn: 'St Kitts', lc: 'St Lucia', vc: 'St Vincent', kp: 'DPRK', kr: 'ROK', cf: 'CAR', tr: 'Turkiye', fm: 'FSM' };
+const SEARCH = Object.values(C).map(c => ({ id: c.id, name: c.name, k: ' ' + norm(c.name + ' ' + (ALIAS[c.id] || '')) }));
+// all countries, not just learned ones, so the list doesn't give the answer away
+function suggest(v) {
+  const s = ' ' + norm(v).replace(/^ +/, ''), ti = $('#ti');
+  const rank = n => (n.k + ' ').includes(s.trimEnd() + ' ') * 2 + n.k.startsWith(s); // whole word ("uk") first, then name prefix
+  ti.hits = s.trim() ? SEARCH.filter(n => n.k.includes(s)).sort((a, b) => rank(b) - rank(a) || a.name.localeCompare(b.name)).slice(0, 5) : [];
+  $('#sug').innerHTML = ti.hits.map(n => `<button onclick="answer('${n.id}')">${n.name}</button>`).join('');
+}
+function typeKey(e) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  if (Q.cur.done) nextQ(); else if (e.target.hits?.[0]) answer(e.target.hits[0].id);
+}
+
 const isRight = (q, o) => q.type === 'nb' ? o === true : q.type === 'fam' ? C[q.id].fam.some(f => f.name === o) : o === q.id;
 const fmt = ms => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`;
 const comboText = () => Q.sudden ? `💀 ${Q.right}` : Q.combo >= 2 ? `🔥${Q.combo}` : '';
@@ -564,8 +617,8 @@ function ask(q) {
       <p class="muted" id="nbc">0/${q.need.length} found</p><div class="row" id="giveup"><button onclick="answer(false)">Show me</button></div></div><div id="fb"></div>`;
     return;
   }
-  const tap = q.type === 'n2m' || q.type === 'f2m', c = C[q.id];
-  paint(x => q.type === 'm2f' && x.id === q.id ? 'hl' : q.scope.includes(x.id) ? (tap ? 'opt' : '') : S.p[x.id] ? 'flag off' : 'off');
+  const tap = q.type === 'n2m' || q.type === 'f2m', typed = q.type === 'm2t' || q.type === 'f2t', c = C[q.id];
+  paint(x => (q.type === 'm2f' || q.type === 'm2t') && x.id === q.id ? 'hl' : q.scope.includes(x.id) ? (tap ? 'opt' : '') : S.p[x.id] ? 'flag off' : 'off');
   zoomTo(q.scope);
   const big = flagImg(q.id, 104, 'big');
   const prompt = {
@@ -575,9 +628,21 @@ function ask(q) {
     f2m: big + '<p class="prompt">👆 Tap this country on the map</p>',
     twin: big + '<p class="prompt">👯 Lookalike! Which one is it?</p>',
     fam: big + '<p class="prompt">🧬 Which flag family is this?</p>',
+    m2t: '<p class="prompt">⌨️ Type the name of the <span style="color:var(--acc)">highlighted</span> country</p>',
+    f2t: big + '<p class="prompt">✍️ Type the name of this country</p>',
   }[q.type];
+  const ti = $('#ti');
+  if (typed && ti && Q.n > 1) { // reuse the input so the phone keyboard stays open between questions
+    $('.qtop').outerHTML = qtop(); $('#qp').innerHTML = prompt; $('#sug').innerHTML = '';
+    ti.value = ''; ti.hits = []; ti.readOnly = false; ti.focus();
+    const fb = $('#fb'); fb.className = ''; fb.innerHTML = '';
+    const qc = $('#qc'); qc.classList.remove('pop', 'shake'); void qc.offsetWidth; qc.classList.add('pop');
+    return;
+  }
   const opts = (q.opts || []).map((o, i) => `<button onclick="answer(${i})">${q.type === 'm2f' ? flagImg(o, 48) : q.type === 'fam' ? o : C[o].name}</button>`).join('');
-  $('#panel').innerHTML = `${qtop()}<div class="card pop" id="qc">${prompt}${opts ? `<div class="opts">${opts}</div>` : ''}</div><div id="fb"></div>`;
+  const input = typed ? `<input id="ti" placeholder="Start typing…" autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false" enterkeyhint="go" oninput="suggest(this.value)" onkeydown="typeKey(event)"><div class="sug" id="sug"></div>` : '';
+  $('#panel').innerHTML = `${qtop()}<div class="card pop" id="qc"><div id="qp">${prompt}</div>${opts ? `<div class="opts">${opts}</div>` : ''}${input}</div><div id="fb"></div>`;
+  if (typed) $('#ti').focus();
 }
 
 function answer(p) {
@@ -609,6 +674,8 @@ function answer(p) {
   }
   // show the answer: its flag painted in place, wrong pick in red
   paint(x => x.id === q.id ? 'flag sel' : !ok && x.id === p ? 'wrong' : q.scope.includes(x.id) ? '' : S.p[x.id] ? 'flag off' : 'off');
+  const ti = $('#ti');
+  if (ti) { ti.readOnly = true; ti.value = C[p]?.name || ''; $('#sug').innerHTML = ''; }
   document.querySelectorAll('.opts button').forEach((b, i) => {
     b.disabled = true;
     if (isRight(q, q.opts[i])) b.classList.add('right'); else if (q.opts[i] === p) b.classList.add('wrong');
@@ -658,9 +725,9 @@ function lesson() {
   });
 }
 
-function reviewQ(id, more = []) {
+function reviewQ(id, more = [], only = null) {
   const c = C[id], reg = regionIds(c.region), pool = reg.filter(x => S.p[x]);
-  const types = ['f2m', 'n2m', 'm2f', ...more, ...(c.twins?.ids.every(x => S.p[x]) ? ['twin'] : [])];
+  const types = only || ['f2m', 'n2m', 'm2f', ...more, ...(c.twins?.ids.every(x => S.p[x]) ? ['twin'] : [])];
   return mkQ(id, pick(types), reg, 4, pool.length >= 4 ? pool : reg);
 }
 
@@ -669,24 +736,25 @@ const sdIds = key => learned().filter(id => key === 'World' || C[id].region === 
 function suddenPick() {
   tab('play');
   const row = (key, label, icon) => {
-    const n = sdIds(key).length, r = S.sd[key], on = n >= 4;
+    const n = sdIds(key).length, r = S.sd[sdKey(key, S.set.qt)], on = n >= 4;
     const rec = !r ? 'No runs yet' : r.fc === n ? `🏆 Flawless · ⚡ ${fmt(r.ft)}` : `Best ${r.best}/${n}`;
     return `<button class="game" ${on ? `onclick="suddenDeath('${key}')"` : 'disabled'}><span class="gi" style="--c:var(--card2)">${icon}</span><span style="flex:1"><b>${label}</b><br><small class="muted">${on ? `${plural(n, 'country')} · ${rec}` : `🔒 Learn ${4 - n} more here`}</small></span>${on ? '<span class="muted">›</span>' : ''}</button>`;
   };
   $('#panel').innerHTML = `<button class="ghost" style="padding:4px 0" onclick="play()">‹ Games</button><h2>💀 Sudden Death</h2>
-    <p class="muted" style="margin-top:0">Every country you've unlocked in the area, in random order. One mistake and the run is over. Get them all to go flawless, then beat your time.</p>`
+    <p class="muted" style="margin-top:0">Every country you've unlocked in the area, in random order. One mistake and the run is over. Get them all to go flawless, then beat your time.</p>
+    <h3>Question type</h3>${qtPicker('suddenPick')}`
     + row('World', 'Whole world', '🌍') + REGIONS.map(([r]) => row(r, r, REGION_ICON[r])).join('');
 }
 function suddenDeath(key) {
-  const ids = shuffle(sdIds(key)), total = ids.length;
+  const ids = shuffle(sdIds(key)), total = ids.length, [qt, qi, , only] = qtInfo(S.set.qt);
   let i = 0;
   run({
-    name: `💀 ${key === 'World' ? 'Whole world' : key}`, sudden: true, t0: Date.now(),
+    name: `💀 ${key === 'World' ? 'Whole world' : key} · ${qi}`, sudden: true, t0: Date.now(),
     progress: () => i / total,
-    gen() { if (Q.dead || i >= total) { Q.time ??= Date.now() - Q.t0; return null; } return reviewQ(ids[i++], ['f2n']); },
+    gen() { if (Q.dead || i >= total) { Q.time ??= Date.now() - Q.t0; return null; } return reviewQ(ids[i++], ['f2n'], only); },
     onResult(q, ok) { if (!ok) { Q.dead = q; Q.time = Date.now() - Q.t0; } },
     end() {
-      const sc = Q.right, miss = Q.dead, t = Q.time, r = S.sd[key] ??= { best: 0 };
+      const sc = Q.right, miss = Q.dead, t = Q.time, r = S.sd[sdKey(key, qt)] ??= { best: 0 };
       let record = false;
       if (sc > r.best) { r.best = sc; record = true; }
       if (!miss && (!r.fc || total > r.fc || (total === r.fc && t < r.ft))) { r.fc = total; r.ft = t; record = true; }
@@ -725,17 +793,26 @@ function review() {
   });
 }
 
+function speedPick() {
+  tab('play');
+  const b = S.speed[S.set.qt];
+  $('#panel').innerHTML = `<button class="ghost" style="padding:4px 0" onclick="play()">‹ Games</button><h2>⏱️ Speed Run</h2>
+    <p class="muted" style="margin-top:0">60 seconds, as many of your learned countries as you can. Each question type keeps its own best score.</p>
+    <h3>Question type</h3>${qtPicker('speedPick')}
+    <button class="primary wide" onclick="speed()">Start${b ? ` · best ${b}` : ''}</button>`;
+}
 function speed() {
-  const L = learned(), end = Date.now() + 60000;
+  const L = learned(), end = Date.now() + 60000, [qt, qi, , only] = qtInfo(S.set.qt);
   run({
-    name: 'Speed Run', fast: true,
+    name: `Speed Run · ${qi}`, fast: true,
     progress: () => Math.max(0, (end - Date.now()) / 60000),
-    gen() { if (Date.now() > end) return null; const id = pick(L, Q.lastId); return mkQ(id, pick(['f2m', 'n2m']), regionIds(C[id].region)); },
+    gen() { if (Date.now() > end) return null; return reviewQ(pick(L, Q.lastId), ['f2n'], only); },
     onResult() {},
     end() {
-      const sc = Q.right, best = sc > S.best;
-      S.best = Math.max(S.best, sc); save();
-      result('⏱️', `${sc} in 60 seconds`, best ? 'New personal best! 🏅' : `Your best: ${S.best}`, [], { party: best, noRing: true });
+      const sc = Q.right, old = S.speed[qt] || 0, best = sc > old;
+      S.speed[qt] = Math.max(old, sc); save();
+      result('⏱️', `${sc} in 60 seconds`, best ? 'New personal best! 🏅' : `Your best: ${old}`, [], { party: best, noRing: true,
+        buttons: `<button class="primary" style="flex:2" onclick="speed()">⏱️ Again</button><button onclick="speedPick()">Change type</button>` });
     },
   });
 }
@@ -784,7 +861,7 @@ const GAMES = [
   ['🧬', 'Family Sort', 'Sort flags into their families', 'famSort', () => famPool().length >= 4, 'Learn 4 countries from a flag family', 'linear-gradient(135deg,#a78bfa,#7c3aed)'],
   ['👯', 'Twin Duel', 'Quick-fire lookalike flags', 'twinDuel', () => twinPool().length >= 2, 'Learn both flags of a lookalike pair, e.g. Norway & Iceland', 'linear-gradient(135deg,#f9a8d4,#db2777)'],
   ['🧭', 'Neighbours', 'Tap every country that borders it', 'neighbours', () => nbPool().length >= 3, 'Learn a few countries that border each other', 'linear-gradient(135deg,#6ee7b7,#059669)'],
-  ['⏱️', 'Speed Run', '60 seconds, as many as you can', 'speed', () => learned().length >= 4, 'Learn 4 countries', 'linear-gradient(135deg,#fcd34d,#f59e0b)'],
+  ['⏱️', 'Speed Run', '60 seconds, as many as you can', 'speedPick', () => learned().length >= 4, 'Learn 4 countries', 'linear-gradient(135deg,#fcd34d,#f59e0b)'],
   ['💀', 'Sudden Death', 'One mistake and the run is over', 'suddenPick', () => learned().length >= 4, 'Learn 4 countries', 'linear-gradient(135deg,#f87171,#7f1d1d)'],
 ];
 function play() {
@@ -792,7 +869,7 @@ function play() {
   $('#panel').innerHTML = `<h2>Play 🎮</h2><p class="muted" style="margin-top:0">Games only use countries you've already learned.</p>`
     + GAMES.map(([ic, t, d, fn, ok, lock, col]) => {
       const on = ok();
-      return `<button class="game" ${on ? `onclick="${fn}()"` : 'disabled'}><span class="gi" style="--c:${col}">${ic}</span><span style="flex:1"><b>${t}</b>${fn === 'speed' && S.best ? ` <small class="muted">· best ${S.best}</small>` : ''}<br><small class="muted">${on ? d : '🔒 ' + lock}</small></span>${on ? '<span class="muted">›</span>' : ''}</button>`;
+      return `<button class="game" ${on ? `onclick="${fn}()"` : 'disabled'}><span class="gi" style="--c:${col}">${ic}</span><span style="flex:1"><b>${t}</b>${fn === 'speedPick' && S.speed[S.set.qt] ? ` <small class="muted">· best ${S.speed[S.set.qt]}</small>` : ''}<br><small class="muted">${on ? d : '🔒 ' + lock}</small></span>${on ? '<span class="muted">›</span>' : ''}</button>`;
     }).join('');
 }
 
@@ -851,14 +928,26 @@ function settings() {
   const list = Object.values(C);
   list.forEach(c => {
     c.f = byNum[+c.num] || byName[c.name] || { type: 'Feature', geometry: { type: 'Point', coordinates: POINTS[c.id] } };
-    c.box = mainBounds(c.f);
     c.small = path.area(c.f) < 2;
   });
   const byFeat = new Map(list.map(c => [c.f, c.id]));
   list.forEach(c => { c.nb = (nbs[all.indexOf(c.f)] || []).map(j => byFeat.get(all[j])).filter(Boolean); });
   const used = new Set(list.map(c => c.f));
-  g.selectAll('path.land').data(geo.filter(f => !used.has(f))).join('path').attr('class', 'land').attr('d', path);
-  g.selectAll('path.c').data(list.filter(c => c.f.geometry.type !== 'Point')).join('path').attr('class', 'c').attr('d', c => path(c.f)).on('click', (e, c) => onTap(c.id));
+  // France and the Netherlands include overseas parts on other continents (French Guiana, Caribbean,
+  // Réunion, Mayotte, Bonaire…): show those as plain land so they aren't tapped or painted as the country
+  const overseas = [];
+  for (const id of ['fr', 'nl']) {
+    const c = C[id], inEurope = p => { const [lon, lat] = d3.geoCentroid({ type: 'Polygon', coordinates: p }); return lon > -12 && lon < 30 && lat > 35; };
+    const polys = c.f.geometry.coordinates;
+    overseas.push({ type: 'Feature', geometry: { type: 'MultiPolygon', coordinates: polys.filter(p => !inEurope(p)) } });
+    c.f = { ...c.f, geometry: { type: 'MultiPolygon', coordinates: polys.filter(inEurope) } };
+    c.nb = c.nb.filter(n => C[n].region === c.region);
+    for (const n of Object.values(C)) if (n.region !== c.region) n.nb = n.nb.filter(x => x !== id);
+  }
+  g.selectAll('path.land').data([...geo.filter(f => !used.has(f)), ...overseas]).join('path').attr('class', 'land').attr('d', path);
+  list.forEach(c => { c.parts = c.f.geometry.type === 'Point' ? [] : parts(c.f); c.box = c.parts[0]?.box || path.bounds(c.f); });
+  g.selectAll('g.c').data(list.filter(c => c.parts.length)).join('g').attr('class', 'c').on('click', (e, c) => onTap(c.id))
+    .selectAll('path').data(c => c.parts).join('path').attr('d', p => p.d);
   g.selectAll('circle.mk').data(list.filter(c => c.small)).join('circle').attr('class', 'mk c').attr('r', 4.5)
     .attr('cx', c => (c.box[0][0] + c.box[1][0]) / 2).attr('cy', c => (c.box[0][1] + c.box[1][1]) / 2).on('click', (e, c) => onTap(c.id));
   home();
