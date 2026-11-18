@@ -403,16 +403,26 @@ function zoomTo(ids, maxK = 40) {
 }
 function zoomWorld() { lastView = null; svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity); }
 
+// Map fills use PNG: Safari ignores preserveAspectRatio on SVG images and letterboxes them.
+const fillUrl = id => `https://flagcdn.com/w1280/${id}.png`;
+const flagRatio = {}; // id -> Promise<width / height>
+const ratioOf = id => flagRatio[id] ??= new Promise(res => { const im = new Image(); im.onload = () => res(im.naturalWidth / im.naturalHeight || 1.5); im.onerror = () => res(1.5); im.src = fillUrl(id); });
+const STRETCH = 1.5; // flags may be stretched this much towards the country's shape; the rest is cropped
 function flagPat(c, i) { // i: index into c.parts, or 'mk' for the microstate marker
   const id = `p${c.id}${i}`;
   if (!document.getElementById(id)) {
     const p = defs.append('pattern').attr('id', id);
-    const img = p.append('image').attr('href', flagUrl(c.id));
-    if (i === 'mk') { p.attr('patternContentUnits', 'objectBoundingBox').attr('width', 1).attr('height', 1); img.attr('width', 1).attr('height', 1).attr('preserveAspectRatio', 'none'); }
+    const img = p.append('image').attr('href', fillUrl(c.id)).attr('preserveAspectRatio', 'none');
+    if (i === 'mk') { p.attr('patternContentUnits', 'objectBoundingBox').attr('width', 1).attr('height', 1); img.attr('width', 1).attr('height', 1); }
     else {
-      const [[x0, y0], [x1, y1]] = c.parts[i].box;
-      p.attr('patternUnits', 'userSpaceOnUse').attr('x', x0).attr('y', y0).attr('width', x1 - x0).attr('height', y1 - y0);
-      img.attr('width', x1 - x0).attr('height', y1 - y0).attr('preserveAspectRatio', 'xMidYMid slice');
+      const [[x0, y0], [x1, y1]] = c.parts[i].box, w = x1 - x0, h = y1 - y0;
+      p.attr('patternUnits', 'userSpaceOnUse').attr('x', x0).attr('y', y0).attr('width', w).attr('height', h);
+      img.attr('width', w).attr('height', h);
+      ratioOf(c.id).then(ar => {
+        const t = ar * Math.min(STRETCH, Math.max(1 / STRETCH, w / h / ar)); // target width/height after stretching
+        const iw = w / h > t ? w : h * t, ih = iw / t;
+        img.attr('x', (w - iw) / 2).attr('y', (h - ih) / 2).attr('width', iw).attr('height', ih);
+      });
     }
   }
   return `url(#${id})`;
